@@ -271,10 +271,15 @@ for n = 1:length(ax.Children) % loop over lines on the axes
     ln = ax.Children(n);
     if strcmp(ln.Tag, 'Explorable')
         % Get x and y data
-        figdat(c:c+3) = {ax.XLabel.String, ln.XData, ax.YLabel.String, ln.YData};
+        if any(strcmp(ln.Type, {'contour','surface'})) && isvector(ln.XData)
+            [x,y] = meshgrid(ln.XData,ln.YData);
+            figdat(c:c+3) = {ax.XLabel.String, x, ax.YLabel.String, y};
+        else
+            figdat(c:c+3) = {ax.XLabel.String, ln.XData, ax.YLabel.String, ln.YData};
+        end
         c = c+4;
         % Get z data if present
-        if ~isempty(ax.ZLabel.String)
+        if ~isempty(ln.ZData)
             figdat(c:c+1) = {ax.ZLabel.String, ln.ZData};
             c = c+2;
         end
@@ -439,23 +444,59 @@ function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
 ax = ancestor(slct(n).xplobj, 'axes'); % Get the parent axes
 fig = ancestor(ax, 'figure'); % Get the parent figure
 
-if strcmp(fig.SelectionType,'normal') % left click?
+% Check if the axes holds 3D information
+is3D = false;
+if ~isempty(slct(n).xplobj.ZData)
+    is3D = true;
+end
+
+if strcmp(fig.SelectionType,'normal') % left click
 
     % Get position of mouse
-    pos = ax.CurrentPoint(1, 1:2); 
+    pos = ax.CurrentPoint; % plot-frame intersects
 
     % Normalize by figure limits before search
-    xn = abs( diff(ax.XLim) ); yn = abs( diff(ax.YLim) );
-    x = slct(n).xplobj.XData./xn;
-    y = slct(n).xplobj.YData./yn;
-    pos = pos./[xn yn];
+    xn = abs( diff(ax.XLim) );
+    x = slct(n).xplobj.XData/xn; 
 
-    % Find nearest data point
-    if isvector(x)
-        ind = dsearchn( [ x; y ]', pos );
+    yn = abs( diff(ax.YLim) );
+    y = slct(n).xplobj.YData/yn;
+
+    zn = abs( diff(ax.ZLim) );
+    z = slct(n).xplobj.ZData/zn; 
+
+    pos = pos./[xn yn zn; xn yn zn];
+    posln = (pos(2,:)-pos(1,:))./norm(pos(2,:)-pos(1,:)); % line through both intersects
+
+    % Find nearest data point - certain plot types are treated differently
+    if ~is3D
+        ind = dsearchn( [ x; y ]', pos(1,1:2) );
     else
-        % If the XData is an ND matrix then it is gridded data
-        ind = sub2ind(size(x), dsearchn(y(:,1), pos(2)), dsearchn(x(1,:)', pos(1)) );
+    % Though 2D, contour plots will be treated as 3D
+        if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
+
+            % In this case 'z' will always be gridded, 'x' and 'y' may not
+            if isvector(x)
+                [x, y] = meshgrid(x, y);
+            end
+            x = x(:);
+            y = y(:);
+            z = z(:);
+
+        end
+
+        % Find the point closest to the intersecting line
+        tol = 1e-3; % distance tolerance
+        nz = length(z);
+        %     If pos1 = pnt on line, posln = direction vector of line, xyz = point to find distance for
+        % dst = ||(pos1 - xyz) - ( (pos1 - xyz).posln )*posln||
+        xyz_d = sqrt(sum( ((pos(1,:) - [x, y, z]) - sum( (pos(1,:) - [x, y, z]).*repmat(posln,nz,1), 2 ).*repmat(posln,nz,1)).^2, 2));
+        ind = 1:nz;
+        ind = ind(ismembertol(xyz_d, min(xyz_d), tol));
+        % Choose the point closest to the screen
+        [~, ii] = min(norm(pos(1,:)' - [x(ind), y(ind), z(ind)]'));
+        ind = ind(ii);
+
     end
 
     % Update all points when link all selections is on, otherwise just the
@@ -466,20 +507,35 @@ if strcmp(fig.SelectionType,'normal') % left click?
         slist = n;
     end
 
+    % Updating points indicated above
     for s = slist
         % Set selected index
         slct(s).ind = ind;
 
         % Snap to nearest data point
-        p(1) = slct(s).xplobj.XData(ind);
-        p(2) = slct(s).xplobj.YData(ind);
+        if any( strcmp(slct(s).xplobj.Type, {'contour','surface'}) )
+            if isvector(slct(s).xplobj.XData)
+                [x,y] = meshgrid(slct(s).xplobj.XData, slct(s).xplobj.YData);
+            end
+            p(1) = x(ind);
+            p(2) = y(ind);
+        else
+            p(1) = slct(s).xplobj.XData(ind);
+            p(2) = slct(s).xplobj.YData(ind);
+        end
+
+        if is3D
+            p(3) = slct(s).xplobj.ZData(ind);
+        else
+            p(3) = 0;
+        end
 
         % Update the graphical line object for the selected point
         if ~isempty(slct(s).pnt)
             delete(slct(s).pnt)
         end
         sax = ancestor(slct(s).xplobj, 'axes');
-        slct(s).pnt = line(sax, p(1), p(2), 'Marker', 'o', 'MarkerSize', 6, 'MarkerFaceColor', 'm'); % TODO: allow specifying point options
+        slct(s).pnt = line(sax, p(1), p(2), p(3), 'Marker', 'o', 'MarkerSize', 6, 'MarkerFaceColor', 'm'); % TODO: allow specifying point options
 
         % Set edit box values
         for edt = ui.ax(s).edt
