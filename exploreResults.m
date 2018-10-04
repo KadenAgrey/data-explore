@@ -101,14 +101,25 @@ end
 %% --- Prepair Main Figure --- %%
 % --- Fig size and plot positioning ---
 % Resize the figure and position the plots to fit the ui
-nch = length(fig.Children); % number of children in figure
-unit = fig.Units; fig.Units = 'pixels'; % save units to reset after
+children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes
+nch = length(children); % number of children in figure
+fig.Units = 'pixels';
+set(fig.Children, 'Units', 'pixels');
 
 % Get size of all the figure children
-ax_opos = zeros(nch,4); % axes outer position
+ax_opos = zeros(nch,4);
 for ch = 1:nch
-    fig.Children(ch).Units = 'pixels';
-    ax_opos(ch,:) = fig.Children(ch).OuterPosition;
+    % Some objects don't have an OuterPosition
+    if isprop(children(ch), 'OuterPosition')
+        ax_opos(ch,:) = children(ch).OuterPosition;
+    else
+        ax_opos(ch,:) = children(ch).Position;
+    end
+end
+if length(fig.Children) > 1
+    ax_pos = cell2mat(get(fig.Children, 'Position'));
+else
+    ax_pos = get(fig.Children, 'Position');
 end
 
 % Get the unique row positions and the row each child is in
@@ -135,7 +146,7 @@ for row = 1:nrow
     for ch = rowch
 
         % If the child is Explorable then add the row to the pad list
-        ind = fig.Children(ch)==xplr.ax;
+        ind = children(ch)==xplr.ax;
         if any(ind) && ( usefigdat || ~isempty(txtedtdat(ind)) )
             pad_row(length(pad_row)+1,1) = row;
             break
@@ -162,10 +173,22 @@ for row = nrow:-1:1 % start at bottom row
     % Move all the axes of this row accordingly
     rowch = find(row==ax_rows)';
     for ch = rowch
-        fig.Children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
-        fig.Children(ch).Units = 'normalized';
+        % Some objects don't have an OuterPosition
+        if isprop(children(ch), 'OuterPosition')
+            children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
+        else
+            children(ch).Position(2) = ax_opos(ch,2) + axpad;
+        end
     end
 end
+
+% Reset the position sizes incase they have magically changed
+for ch = 1:length(fig.Children)
+    fig.Children(ch).Position(3:4) = ax_pos(ch, 3:4);
+end
+
+% Reset units
+set(fig.Children, 'Units', 'normalized');
 
 % --- Make non-explorable axes children 'unpickable' ---
 % Set the 'PickableParts' property for non-explorable axes children to
@@ -446,14 +469,14 @@ fig = ancestor(ax, 'figure'); % Get the parent figure
 
 % Check if the axes holds 3D information
 is3D = false;
-if ~isempty(slct(n).xplobj.ZData)
+if ~isempty(slct(n).xplobj.ZData) && ~strcmp(slct(n).xplobj.Type, 'contour')
     is3D = true;
 end
 
 if strcmp(fig.SelectionType,'normal') % left click
 
-    % Get position of mouse
-    pos = ax.CurrentPoint; % plot-frame intersects
+    % Get plot-frame intersects of mouse
+    pos = ax.CurrentPoint;
 
     % Normalize by figure limits before search
     xn = abs( diff(ax.XLim) );
@@ -468,24 +491,25 @@ if strcmp(fig.SelectionType,'normal') % left click
     pos = pos./[xn yn zn; xn yn zn];
     posln = (pos(2,:)-pos(1,:))./norm(pos(2,:)-pos(1,:)); % line through both intersects
 
+    % 'contour' and 'surface' plots may have gridded data
+    if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
+        % In this case 'z' will always be gridded, 'x' and 'y' may not
+        if isvector(x)
+            [x, y] = meshgrid(x, y);
+        end
+    end
+
+    x = x(:);
+    y = y(:);
+    z = z(:);
+
     % Find nearest data point - certain plot types are treated differently
     if ~is3D
-        ind = dsearchn( [ x; y ]', pos(1,1:2) );
+        % 2D: just find the point closest to the first intersection
+        ind = dsearchn( [ x, y ], pos(1,1:2) );
+
     else
-    % Though 2D, contour plots will be treated as 3D
-        if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
-
-            % In this case 'z' will always be gridded, 'x' and 'y' may not
-            if isvector(x)
-                [x, y] = meshgrid(x, y);
-            end
-            x = x(:);
-            y = y(:);
-            z = z(:);
-
-        end
-
-        % Find the point closest to the intersecting line
+        % 3D: find the point closest to the intersecting line
         tol = 1e-3; % distance tolerance
         nz = length(z);
         %     If pos1 = pnt on line, posln = direction vector of line, xyz = point to find distance for
@@ -493,7 +517,7 @@ if strcmp(fig.SelectionType,'normal') % left click
         xyz_d = sqrt(sum( ((pos(1,:) - [x, y, z]) - sum( (pos(1,:) - [x, y, z]).*repmat(posln,nz,1), 2 ).*repmat(posln,nz,1)).^2, 2));
         ind = 1:nz;
         ind = ind(ismembertol(xyz_d, min(xyz_d), tol));
-        % Choose the point closest to the screen
+        % Of points that fit tol, choose the point closest to the screen
         [~, ii] = min(norm(pos(1,:)' - [x(ind), y(ind), z(ind)]'));
         ind = ind(ii);
 
@@ -535,7 +559,7 @@ if strcmp(fig.SelectionType,'normal') % left click
             delete(slct(s).pnt)
         end
         sax = ancestor(slct(s).xplobj, 'axes');
-        slct(s).pnt = line(sax, p(1), p(2), p(3), 'Marker', 'o', 'MarkerSize', 6, 'MarkerFaceColor', 'm'); % TODO: allow specifying point options
+        slct(s).pnt = line(sax, p(1), p(2), p(3), 'DisplayName', 'Selection', 'Marker', 'o', 'MarkerSize', 6, 'MarkerFaceColor', 'm'); % TODO: allow specifying point options
 
         % Set edit box values
         for edt = ui.ax(s).edt
