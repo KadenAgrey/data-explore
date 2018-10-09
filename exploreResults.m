@@ -18,8 +18,6 @@ function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat,
 %       mainplot.Children(ax).Children(ln).PickableParts = 'visible'
 %   The script will automatically add space for the for the ui elements.
 %   TODO: Set fig, axes, and line units carefully
-%   TODO: Allow for 3D data sets to be selected
-%   TODO: Other graphical objects (legends, colorbars) break the script
 % 
 %   pbtnfcn: This argument is used to initialize the push button called
 %   'View Details'. It should be a cell array with an anonymous function
