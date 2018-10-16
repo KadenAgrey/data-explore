@@ -38,6 +38,7 @@ for plt = 2:4
     ax.Tag = 'Explorable'; % This is set to refine the search path. Though the search path should never be large so I should change this.
 end
 
+%% Launch exploreData
 % exploreResults has an option for display boxes to show information on the
 % selected point. It can get this information from the line selected and/or
 % the user can provide the information in a cell array.
