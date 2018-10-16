@@ -1,4 +1,4 @@
-function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat, linkselect )
+function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, linkselect )
 % exploreResults launches an interactive plot from which data points can be
 % selected and detailed results for that case viewed.
 % By: Kaden Agrey
@@ -18,6 +18,7 @@ function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat,
 %       mainplot.Children(ax).Children(ln).PickableParts = 'visible'
 %   The script will automatically add space for the for the ui elements.
 %   TODO: Set fig, axes, and line units carefully
+%   TODO: What if the colorbar has been manually positioned by the user?
 % 
 %   pbtnfcn: This argument is used to initialize the push button called
 %   'View Details'. It should be a cell array with an anonymous function
@@ -67,10 +68,10 @@ function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat,
 
 %% --- Initialize --- %%
 % Generate or pass on the figure
-if isa(mainplot, 'function_handle')
-    fig = mainplot();
-elseif isgraphics(mainplot,'figure')
-    fig = mainplot;
+if isa(mainfig, 'function_handle')
+    fig = mainfig();
+elseif isgraphics(mainfig,'figure')
+    fig = mainfig;
 else
     error('The main plot variable must be a figure or an anonymous function that will generate a figure')
 end
@@ -97,6 +98,110 @@ for p = 1:length(xplr.ln)
 end
 
 %% --- Prepair Main Figure --- %%
+% % --- Fig size and plot positioning ---
+% % Resize the figure and position the plots to fit the ui
+% children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes
+% nch = length(children); % number of children in figure
+% fig.Units = 'pixels';
+% set(fig.Children, 'Units', 'pixels');
+% 
+% % Get size of all the figure children
+% ax_opos = zeros(nch,4);
+% for ch = 1:nch
+%     % Some objects don't have an OuterPosition
+%     if isprop(children(ch), 'OuterPosition')
+%         ax_opos(ch,:) = children(ch).OuterPosition;
+%     else
+%         ax_opos(ch,:) = children(ch).Position;
+%     end
+% end
+% if length(fig.Children) > 1
+%     ax_pos = cell2mat(get(fig.Children, 'Position'));
+% else
+%     ax_pos = get(fig.Children, 'Position');
+% end
+% 
+% % Get the unique row positions and the row each child is in
+% nrow = 0; % number of plot rows, also used as row index in loop
+% row_pos = []; % position of rows
+% ax_rows = zeros(nch,1); % the row each child belongs to
+% [~, sortind] = sort(ax_opos(:,2), 'descend'); % descending order is required for the following algorithm.
+% for ch = sortind'
+%     % A row is 'unique' if it hasn't been indexed yet, or if the vertical
+%     % position plus the axes height is less than the current row.
+%     if ~ismembertol(ax_opos(ch,2), row_pos) && ( isempty( row_pos ) || all( sum(ax_opos(ch,[2 4]))<row_pos ) )
+%         nrow = nrow + 1;
+%         row_pos(nrow,1) = ax_opos(ch,2);
+%         ax_rows(ch) = nrow;
+%     else
+%         ax_rows(ch) = nrow;
+%     end
+% end
+% 
+% % Get rows that require padding
+% pad_row = []; % list of rows requiring padding
+% for row = 1:nrow
+%     rowch = find(row==ax_rows)';
+%     for ch = rowch
+% 
+%         % If the child is Explorable then add the row to the pad list
+%         ind = children(ch)==xplr.ax;
+%         if any(ind) && ( usefigdat || ~isempty(txtedtdat(ind)) )
+%             pad_row(length(pad_row)+1,1) = row;
+%             break
+%         end
+% 
+%     end
+% end
+% 
+% % Using the above data set the total figure padding
+% figpad = 30 + 5 + 20*2*length(pad_row);
+% 
+% % Resize figure window
+% fig.OuterPosition(2) = 50; % just move to the bottom of the screen
+% fig.OuterPosition(4) = fig.OuterPosition(4) + figpad;
+% 
+% % Reposition children
+% axpad = 30 + 5;
+% for row = nrow:-1:1 % start at bottom row
+%     % Add text/edit padding if this row requires it
+%     if ismember(row, pad_row)
+%         axpad = axpad + 20*2;
+%     end
+% 
+%     % Move all the axes of this row accordingly
+%     rowch = find(row==ax_rows)';
+%     for ch = rowch
+%         % Some objects don't have an OuterPosition
+%         if isprop(children(ch), 'OuterPosition')
+%             children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
+%         else
+%             children(ch).Position(2) = ax_opos(ch,2) + axpad;
+%         end
+%     end
+% end
+% 
+% % Reset the position sizes incase they have magically changed
+% for ch = 1:length(fig.Children)
+%     fig.Children(ch).Position(3:4) = ax_pos(ch, 3:4);
+% end
+% 
+% % Reset units
+% set(fig.Children, 'Units', 'normalized');
+% 
+% % --- Make non-explorable axes children 'unpickable' ---
+% % Set the 'PickableParts' property for non-explorable axes children to
+% % 'none'.
+% % We only need to consider axes that are marked explorable
+% for a = 1:length(xplr.ax)
+%     for ch = 1:length(xplr.ax(a).Children)
+%         if ~ismember(xplr.ax(a).Children(ch), xplr.ln)
+%             xplr.ax(a).Children(ch).PickableParts = 'none';
+%         end
+%     end
+% end
+
+%% --- Prepair Main Figure --- %%
 % --- Fig size and plot positioning ---
 % Resize the figure and position the plots to fit the ui
 children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes
@@ -105,14 +210,21 @@ fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
 % Get size of all the figure children
-ax_opos = zeros(nch,4);
+ax_tins = zeros(nch,4);
+% ax_opos = zeros(nch,4);
 for ch = 1:nch
-    % Some objects don't have an OuterPosition
-    if isprop(children(ch), 'OuterPosition')
-        ax_opos(ch,:) = children(ch).OuterPosition;
+    % Some objects don't have a TightInset
+    if isprop(children(ch), 'TightInset')
+        ax_tins(ch,:) = children(ch).TightInset;
     else
-        ax_opos(ch,:) = children(ch).Position;
+        ax_tins(ch,:) = [0 0 0 0];
     end
+%     % Some objects don't have an OuterPosition
+%     if isprop(children(ch), 'OuterPosition')
+%         ax_opos(ch,:) = children(ch).OuterPosition;
+%     else
+%         ax_opos(ch,:) = children(ch).Position;
+%     end
 end
 if length(fig.Children) > 1
     ax_pos = cell2mat(get(fig.Children, 'Position'));
@@ -124,13 +236,13 @@ end
 nrow = 0; % number of plot rows, also used as row index in loop
 row_pos = []; % position of rows
 ax_rows = zeros(nch,1); % the row each child belongs to
-[~, sortind] = sort(ax_opos(:,2), 'descend'); % descending order is required for the following algorithm.
+[~, sortind] = sort(ax_pos(:,2), 'descend'); % descending order is required for the following algorithm.
 for ch = sortind'
     % A row is 'unique' if it hasn't been indexed yet, or if the vertical
     % position plus the axes height is less than the current row.
-    if ~ismembertol(ax_opos(ch,2), row_pos) && ( isempty( row_pos ) || all( sum(ax_opos(ch,[2 4]))<row_pos ) )
+    if ~ismembertol(ax_pos(ch,2), row_pos) && ( isempty( row_pos ) || all( sum(ax_pos(ch,[2 4]))<row_pos ) )
         nrow = nrow + 1;
-        row_pos(nrow,1) = ax_opos(ch,2);
+        row_pos(nrow,1) = ax_pos(ch,2);
         ax_rows(ch) = nrow;
     else
         ax_rows(ch) = nrow;
@@ -154,29 +266,34 @@ for row = 1:nrow
 end
 
 % Using the above data set the total figure padding
-figpad = 30 + 5 + 20*2*length(pad_row);
+pbtn_h = 30; % [pixels] PushButton height
+te_h = 20*2; % [pixels] Text+Edit box height
+te_abv_marg = 5; % [pixels] % Margin above T+E and below plot
+te_blw_marg = 10; % [pixels] % Margin below T+E and above plot
+figpad = pbtn_h + 5 + te_h*length(pad_row);
 
 % Resize figure window
-fig.OuterPosition(2) = 50; % just move to the bottom of the screen
+fig.OuterPosition(2) = 50; % move to the bottom of the screen
 fig.OuterPosition(4) = fig.OuterPosition(4) + figpad;
 
 % Reposition children
-axpad = 30 + 5;
+axpad = pbtn_h + 5;
 for row = nrow:-1:1 % start at bottom row
     % Add text/edit padding if this row requires it
     if ismember(row, pad_row)
-        axpad = axpad + 20*2;
+        axpad = axpad + te_h + te_abv_marg;
     end
 
     % Move all the axes of this row accordingly
     rowch = find(row==ax_rows)';
     for ch = rowch
-        % Some objects don't have an OuterPosition
-        if isprop(children(ch), 'OuterPosition')
-            children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
-        else
-            children(ch).Position(2) = ax_opos(ch,2) + axpad;
-        end
+        children(ch).Position(2) = ax_pos(ch,2) + axpad;
+%         % Some objects don't have an OuterPosition
+%         if isprop(children(ch), 'OuterPosition')
+%             children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
+%         else
+%             children(ch).Position(2) = ax_opos(ch,2) + axpad;
+%         end
     end
 end
 
