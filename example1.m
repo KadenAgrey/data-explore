@@ -6,7 +6,6 @@ mainfig.OuterPosition(1:2) = [30, 50];
 mainfig.OuterPosition(3:4) = mainfig.OuterPosition(3:4)*1.8;
 x = 0:0.1:10;
 
-% for plt = 4:-1:2
 for plt = 2:4
     if plt == 3
         ax = subplot(2,2,[1 plt]);
