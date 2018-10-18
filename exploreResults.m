@@ -1,4 +1,4 @@
-function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat, linkselect )
+function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, linkselect )
 % exploreResults launches an interactive plot from which data points can be
 % selected and detailed results for that case viewed.
 % By: Kaden Agrey
@@ -18,6 +18,7 @@ function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat,
 %       mainplot.Children(ax).Children(ln).PickableParts = 'visible'
 %   The script will automatically add space for the for the ui elements.
 %   TODO: Set fig, axes, and line units carefully
+%   TODO: What if the colorbar has been manually positioned by the user?
 % 
 %   pbtnfcn: This argument is used to initialize the push button called
 %   'View Details'. It should be a cell array with an anonymous function
@@ -66,11 +67,17 @@ function [ mainplot ] = exploreResults( mainplot, pbtnfcn, txtedtdat, usefigdat,
 %   2018.09.26: Set unexplorable lines to not be 'pickable'.
 
 %% --- Initialize --- %%
+% These variables define the size and spacing of the ui objects
+pbtn_h = 30; % [pixels] PushButton height
+pbtn_blw_marg = 5; % [pixels] Margin below PushButton
+txtedt_h = 20*2; % [pixels] Text & Edit box height
+txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
+
 % Generate or pass on the figure
-if isa(mainplot, 'function_handle')
-    fig = mainplot();
-elseif isgraphics(mainplot,'figure')
-    fig = mainplot;
+if isa(mainfig, 'function_handle')
+    fig = mainfig();
+elseif isgraphics(mainfig,'figure')
+    fig = mainfig;
 else
     error('The main plot variable must be a figure or an anonymous function that will generate a figure')
 end
@@ -97,50 +104,35 @@ for p = 1:length(xplr.ln)
 end
 
 %% --- Prepair Main Figure --- %%
-% --- Fig size and plot positioning ---
+
+% --- Figure size and plot positioning --- %
 % Resize the figure and position the plots to fit the ui
-children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes
+children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes (not always!)
 nch = length(children); % number of children in figure
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
 % Get size of all the figure children
-ax_opos = zeros(nch,4);
+ax_tins = zeros(nch,4);
 for ch = 1:nch
-    % Some objects don't have an OuterPosition
-    if isprop(children(ch), 'OuterPosition')
-        ax_opos(ch,:) = children(ch).OuterPosition;
+    % Some objects don't have a TightInset
+    if isprop(children(ch), 'TightInset')
+        ax_tins(ch,:) = children(ch).TightInset;
     else
-        ax_opos(ch,:) = children(ch).Position;
-    end
-end
-if length(fig.Children) > 1
-    ax_pos = cell2mat(get(fig.Children, 'Position'));
-else
-    ax_pos = get(fig.Children, 'Position');
-end
-
-% Get the unique row positions and the row each child is in
-nrow = 0; % number of plot rows, also used as row index in loop
-row_pos = []; % position of rows
-ax_rows = zeros(nch,1); % the row each child belongs to
-[~, sortind] = sort(ax_opos(:,2), 'descend'); % descending order is required for the following algorithm.
-for ch = sortind'
-    % A row is 'unique' if it hasn't been indexed yet, or if the vertical
-    % position plus the axes height is less than the current row.
-    if ~ismembertol(ax_opos(ch,2), row_pos) && ( isempty( row_pos ) || all( sum(ax_opos(ch,[2 4]))<row_pos ) )
-        nrow = nrow + 1;
-        row_pos(nrow,1) = ax_opos(ch,2);
-        ax_rows(ch) = nrow;
-    else
-        ax_rows(ch) = nrow;
+        ax_tins(ch,:) = [0 0 0 0];
     end
 end
 
-% Get rows that require padding
+ax_pos = getAsMat(fig.Children, 'Position');
+ax_siz = ax_pos(:,3:4); % save plot sizes now as they can automagically change
+ax_sub = getSubPlotInd(ax_pos); % subplot-like indices for each child (cell array)
+ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
+nrow = max(ax_row);
+
+% Get rows that require padding (columns won't require padding)
 pad_row = []; % list of rows requiring padding
 for row = 1:nrow
-    rowch = find(row==ax_rows)';
+    rowch = find(row==ax_row)';
     for ch = rowch
 
         % If the child is Explorable then add the row to the pad list
@@ -153,40 +145,54 @@ for row = 1:nrow
     end
 end
 
-% Using the above data set the total figure padding
-figpad = 30 + 5 + 20*2*length(pad_row);
-
-% Resize figure window
-fig.OuterPosition(2) = 50; % just move to the bottom of the screen
-fig.OuterPosition(4) = fig.OuterPosition(4) + figpad;
-
 % Reposition children
-axpad = 30 + 5;
-for row = nrow:-1:1 % start at bottom row
+ax_pos_new = ax_pos; % initially nothing has moved
+for row = nrow:-1:1 % start from the bottom
     % Add text/edit padding if this row requires it
     if ismember(row, pad_row)
-        axpad = axpad + 20*2;
+        axpad = txtedt_h + sum(txtedtmarg([2 4]));
+    else
+        axpad = txtedtmarg(2);
+    end
+
+    % Find the axes from which to get the height this row should start at
+    rowch = find(row==ax_row); % children in this row
+    rowcol = unique( cell2mat(ax_sub(rowch,2)) );
+
+    rowt = max(ax_tins(rowch,:),[],1); % the largest TightInsets from this row (we only use the bottom and top)
+    rowy = ax_pos(rowch(1),2) - rowt(2); % lowest y-position of this row
+
+    % Note: here a 10 pixel overlap is allowed when checking if a figure is
+    % below the row
+    allsharecol = cellfun(@(C) any(ismember(C, rowcol)), ax_sub(:,2));
+    allblw = ( sum(ax_pos(:,[2 4]), 2) + ax_tins(:,4) - 10 < rowy );
+    chblw = find( allsharecol.*allblw ); % children below and sharing a column with this row
+
+    if ~isempty(chblw)
+        rowy = max( sum(ax_pos_new(chblw,[2 4]), 2) + ax_tins(chblw,4) ); % new y-position of this row
+    else
+        rowy = pbtn_h - txtedtmarg(2) + 5; % if this is the bottom row place it 5 pixels above the PushButtons
     end
 
     % Move all the axes of this row accordingly
-    rowch = find(row==ax_rows)';
-    for ch = rowch
-        % Some objects don't have an OuterPosition
-        if isprop(children(ch), 'OuterPosition')
-            children(ch).OuterPosition(2) = ax_opos(ch,2) + axpad;
-        else
-            children(ch).Position(2) = ax_opos(ch,2) + axpad;
-        end
+    for ch = rowch'
+        children(ch).Position(2) = rowy + rowt(2) + axpad;
     end
+
+    % Update the axes positions recorded
+    ax_pos_new = getAsMat(children, 'Position');
+    ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
+
 end
+
+% Resize figure window
+fig.OuterPosition(2) = 50; % move to the bottom of the screen
+fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
 
 % Reset the position sizes incase they have magically changed
 for ch = 1:length(fig.Children)
-    fig.Children(ch).Position(3:4) = ax_pos(ch, 3:4);
+    fig.Children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
 end
-
-% Reset units
-set(fig.Children, 'Units', 'normalized');
 
 % --- Make non-explorable axes children 'unpickable' ---
 % Set the 'PickableParts' property for non-explorable axes children to
@@ -211,18 +217,18 @@ horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
 ui.fig.pbtn = uicontrol(fig, 'Style', 'pushbutton',... % make the button
                              'String', 'View Details',...
                              'Units', 'pixels',...
-                             'Position', [0 0 150 30]);
+                             'Position', [0 0 150 pbtn_h]);
 
-ui.fig.pbtn.Position = ui.fig.pbtn.Position + [horz 5 0 0]; % five pixel padding
-ui.fig.pbtn.Units = 'normalized'; % reset units
+ui.fig.pbtn.Position = ui.fig.pbtn.Position + [horz pbtn_blw_marg 0 0];
+% ui.fig.pbtn.Units = 'normalized'; % reset units
 
 % Make text and edit objects for each explorable axes
 nax = length(xplr.ax);
 for a = 1:nax
 
     % Initial text and edit box size and options
-    txtopt = {'Position', [0 0 75 20]};
-    editopt = {'Position', [0 0 75 20], 'String', 'Empty', 'Enable', 'inactive'};
+    txtopt = {'Position', [0 0 75 txtedt_h/2]};
+    editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
 
     if usefigdat % user setting to use figure axes data
         axdat = getAxesData(xplr.ax(a));
@@ -234,7 +240,7 @@ for a = 1:nax
     end
 
     % Make the text/edit pair
-    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), txtedtdat{a}, txtopt, editopt);
+    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), txtedtdat{a}, txtedtmarg, txtopt, editopt);
 
 end
 
@@ -247,6 +253,11 @@ for ob = 1:length(slct)
     % objects (ui). Pass index of current selectable object.
     slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, linkselect};
 end
+
+%% Finalize Figure Properties
+% Reset units on figure and all figure children
+fig.Units = 'normalized';
+set(fig.Children, 'Units', 'normalized');
 
 end
 
@@ -309,6 +320,63 @@ end
 
 end
 
+function [subch] = getSubPlotInd(ch_pos)
+% Gets the subplot row and column for the graphical object positions passed
+% in <ch_pos>.
+
+nch = size(ch_pos,1);
+subch = cell(nch,2); % the [row col] pair each child belongs to
+
+% Find unique rows and the row each child is in
+row_pos = []; % position of rows
+[~, sortind] = sort(ch_pos(:,2), 'descend'); % descending order is required for the following algorithm
+for ch = sortind'
+    % A row is 'new' if it hasn't been indexed yet, or if the vertical 
+    % position is less than the current row.
+    if ~ismembertol(ch_pos(ch,2), row_pos) && ( isempty( row_pos ) || all( ch_pos(ch,2)<row_pos ) )
+        row_pos(length(row_pos)+1,1) = ch_pos(ch,2);
+        subch{ch,1} = find( sum(ch_pos(ch,[2 4])) > row_pos );
+    else
+        subch{ch,1} = find( sum(ch_pos(ch,[2 4])) > row_pos );
+    end
+end
+
+% Find unique rows and the row each child is in
+col_pos = []; % position of cols
+[~, sortind] = sort(ch_pos(:,1), 'descend'); % descending order is required for the following algorithm
+for ch = sortind'
+    % A column is 'new' if it hasn't been indexed yet, or if the horizontal 
+    % position greater than the current column.
+    if ~ismembertol(ch_pos(ch,1), col_pos) && ( isempty( col_pos ) || all( ch_pos(ch,1)<col_pos ) )
+        col_pos(length(col_pos)+1,1) = ch_pos(ch,1);
+        subch{ch,2} = find( sum(ch_pos(ch,[1 3])) > col_pos );
+    else
+        subch{ch,2} = find( sum(ch_pos(ch,[1 3])) > col_pos );
+    end
+end
+
+% Reverse order of columns, the above algorithm requires them to be found
+% in the wrong order.
+ncol = max(cell2mat(subch(:,2)));
+cols = ncol:-1:1;
+for ch = 1:size(subch,1)
+    subch{ch,2} = cols(subch{ch,2})';
+end
+
+end
+
+function [pmat] = getAsMat(gobjs, prop)
+% Returns the property requested of all graphics objects passed in as a
+% matrix. (only works if the property can be stored as a matrix)
+
+if length(gobjs) > 1
+    pmat = cell2mat(get(gobjs, prop));
+else
+    pmat = get(gobjs, prop);
+end
+
+end
+
 function [pos, ind] = getLeftChild(parent, unit)
 % Gets leftmost child object
 nch = length(parent.Children);
@@ -342,12 +410,12 @@ end
 end
 
 % --- Makers --- %
-function [txt, edt] = makeValueDispBar(ax, tedat, varargin)
+function [txt, edt] = makeValueDispBar(ax, tedat, temarg, varargin)
 % Makes a bar of labeled edit fields under the given axes
 
 % Handle optional arguments
 %             { txtopt, editopt }
-default_opt = { {},     {} };
+default_opt = { {}    , {}      };
 % Overwrite defaults
 default_opt(1:length(varargin)) = varargin;
 % Assign to pretty variable names
@@ -359,9 +427,9 @@ for n = 1:length(tedat)/2
 
     % Make edit box label
     if n > 1 % place next to last text box
-        txt(n) = makePairedText(txt(n-1), [txtopt, {'String', tedat{2*n-1}}]);
+        txt(n) = makePairedText(txt(n-1), temarg, [txtopt, {'String', tedat{2*n-1}}]);
     else % else place under axes
-        txt(n) = makePairedText(ax, [txtopt, {'String', tedat{2*n-1}}]);
+        txt(n) = makePairedText(ax, temarg, [txtopt, {'String', tedat{2*n-1}}]);
     end
 
     % Make the paired edit box
@@ -374,12 +442,24 @@ end
 
 end
 
-function [txt] = makePairedText(anchor, txtopt)
+function [txt] = makePairedText(anchor, marg, opt)
 % Places and sizes initial text box label for edit box to go underneath
 fig = ancestor(anchor,'figure');
 
+% Get max TightInset for this row so all txtedt pairs are aligned
+if isgraphics(anchor,'axes')
+    figax = findobj(fig.Children, 'Type', 'axes');
+
+    ax_pos = getAsMat(figax, 'Position');
+    ax_sub = getSubPlotInd(ax_pos); % subplot-like indices for each axes
+    ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
+
+    rowax = figax( ax_row == ax_row(figax==anchor) );
+    tins = max(getAsMat(rowax, 'TightInset'), [], 1);
+end
+
 % Make text object
-txtset = [{fig, 'Style', 'text', 'Units', 'pixels'}, txtopt];
+txtset = [{fig, 'Style', 'text', 'Units', 'pixels'}, opt];
 txt = uicontrol(txtset{:});
 
 % Set label size and position relative to associated axes and previous
@@ -395,11 +475,11 @@ tpos = txt.Position;
 % set beside.
 unit = anchor.Units; anchor.Units = 'pixels';
 if isgraphics(anchor,'axes')
-    vert = anchor.OuterPosition(2) - tpos(4); % set pair below axes
-    horz = anchor.Position(1) + 3; % set pair on left plot edge
+    vert = anchor.Position(2) - tins(2) - marg(4) - tpos(4); % set pair below axes
+    horz = anchor.Position(1) + marg(1); % set pair on left plot edge
 else
     vert = anchor.Position(2); % set pair at same height as last pair
-    horz = anchor.Position(1) + 3 + anchor.Position(3); % set pair next to last pair
+    horz = sum(anchor.Position([1 3])) + sum(marg([1 3])); % set pair next to last pair
 end
 anchor.Units = unit;
 
