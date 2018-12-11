@@ -618,6 +618,9 @@ if strcmp(fig.SelectionType,'normal') % left click
         if any( strcmp(slct(s).xplobj.Type, {'contour','surface'}) )
             if isvector(slct(s).xplobj.XData)
                 [x,y] = meshgrid(slct(s).xplobj.XData, slct(s).xplobj.YData);
+            else
+                x = slct(s).xplobj.XData;
+                y = slct(s).xplobj.YData;
             end
             p(1) = x(ind);
             p(2) = y(ind);
