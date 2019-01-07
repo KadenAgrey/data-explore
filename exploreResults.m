@@ -19,6 +19,8 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, links
 %   The script will automatically add space for the for the ui elements.
 %   TODO: Set fig, axes, and line units carefully
 %   TODO: What if the colorbar has been manually positioned by the user?
+%   TODO: Find out how to force Matlab to wait for the renderer before
+%   executing the mainplot formatting.
 % 
 %   pbtnfcn: This argument is used to initialize the push button called
 %   'View Details'. It should be a cell array with an anonymous function
