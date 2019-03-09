@@ -1,4 +1,4 @@
-function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, linkselect )
+function [ fig ] = exploreResults( mainfig, pbtnfcn, lines, txtedtdat, usefigdat, linkselect )
 % exploreResults launches an interactive plot from which data points can be
 % selected and detailed results for that case viewed.
 % By: Kaden Agrey
@@ -6,17 +6,17 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, links
 % 
 % Input
 %   mainplot: This can be a figure handle or anonymous function that
-%   returns a figure (with no input arguments). For the ui features to work
-%   the axes that contain selectable data must have the 'Tag' propery set
-%   to "Explorable". 
-%       mainplot.Children(ax).Tag = 'Explorable' 
-%   Further, the object containing the data that should be selectable 
-%   (such as a line plot) should have the same setting.
-%       mainplot.Children(ax).Children(ln).Tag = 'Explorable'
-%   The these options are set corretly by default
-%       mainplot.Children(ax).Children(ln).HitTest = 'on'
-%       mainplot.Children(ax).Children(ln).PickableParts = 'visible'
-%   The script will automatically add space for the for the ui elements.
+%   returns a figure (with no input arguments). The script will 
+%   automatically add space for the for the ui elements.
+% 
+%   lines: A list of the graphics objects that will be selectable. This is
+%   not a list of axes, but of the axes children that will be selectable.
+%   Supported types are: lines (2D, 3D), scatters (2D, 3D), contours and
+%   surfaces. Other types may work. These object options are set correctly 
+%   by default in MATLAB.
+%       ln.HitTest = 'on'
+%       ln.PickableParts = 'visible'
+% 
 %   TODO: Set fig, axes, and line units carefully
 %   TODO: What if the colorbar has been manually positioned by the user?
 %   TODO: Find out how to force Matlab to wait for the renderer before
@@ -40,6 +40,7 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, links
 %           data
 %       ui: exploreResults variable with pointers to all ui elements
 %       created
+% 
 %   TODO: Currently only one push button can be set - allow multiple
 % 
 %   txtedtdat: A cell array with name/data pairs that will display
@@ -58,8 +59,9 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, links
 %   "Explorable" axes.
 % 
 %   linkselect: When this option is set to true it will force all
-%   "Explorable" axes to have the same index selected. Selecting a point on
-%   one plot will select the same point on all plots. 
+%   axes with explorable children to have the same index selected. 
+%   Selecting a point on one plot will select the same point on all plots. 
+% 
 %   TODO: Let user specify which plots to link
 % 
 % Change Log
@@ -67,6 +69,8 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, txtedtdat, usefigdat, links
 %   2018.08.15: Added support for plots generated from gridded data (like
 %   contours) via linear index conversion.
 %   2018.09.26: Set unexplorable lines to not be 'pickable'.
+%   2019.03.09: Change from using Tag to indicate selectable lines to
+%   passing a list of objects, this is more Matlab-like
 
 %% --- Initialize --- %%
 % These variables define the size and spacing of the ui objects
@@ -87,16 +91,16 @@ end
 % Initialize xplr struct with figure objects and slct struct with graphics 
 % objects to select points from. ui struct is also initialized, each field
 % holds the ui objects by associated graphics object. (push buttons for the
-% figure, text/edit boxes for each axes they are places under etc.
+% figure, text/edit boxes for each axes they are placed under etc.)
 
-% Get all axes and lines marked explorable
-xplr = struct('ax', [], 'ln', []);
-[xplr.ax, xplr.ln] = getExplorable(fig); 
+% Get all axes parenting explorable lines
+xplr = struct('ax', [], 'ln', lines);
+xplr.ax = getExplorableAx(fig, lines);
 
 % Initialize the struct to reference all ui objects. Each field will be an
-% array with numel(ui.field) equal to the number of "Explorable" objects in
+% array with numel(ui.field) equal to the number of explorable objects in
 % the corresponding field in xplr. (Eg, one figure, possibly several axes
-% and several lines for each axes).
+% and several lines for each axes). Stored in each field will be 
 ui = struct('fig', [], 'ax', [], 'ln', []);
 
 % Get objects that selected points will be associated with
@@ -233,7 +237,7 @@ for a = 1:nax
     editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
 
     if usefigdat % user setting to use figure axes data
-        axdat = getAxesData(xplr.ax(a));
+        axdat = getAxesData(xplr.ax(a), xplr.ln);
         if isempty(txtedtdat{a})
             txtedtdat{a} = axdat;
         else
@@ -265,6 +269,36 @@ end
 
 %% --- Functions --- %%
 % --- Getters --- %
+function [axs] = getExplorableAx(fig, lns)
+% Gets axes for line/contours/surfaces etc. passed as arguments to
+% exploreResults and checks that they all belong to the figure <fig>.
+
+axsall = gobjects(length(lns),1); % holds an axes for each ln, some will be duplicates
+for n = 1:length(lns)
+    if ~isequal(ancestor(lns(n), 'figure'), fig)
+        error(['The gobject ' lns(n).DisplayName 'is not part of the main ' ...
+               'figure. All exploreable lines must be on the same figure'])
+    end
+
+    axsall(n) = ancestor(lns(n), 'axes');
+end
+axssort = unique(axsall); % No duplicates but we must order these correctly
+
+% Loop over all children of parent figure
+axs = gobjects(length(axssort),1);
+ca = 1; % counter
+for a = length(fig.Children):-1:1
+% We loop backwards because figure children are in reverse order of 
+% creation, and it's easiest for the user to require their data is 
+% organized in order of creation.
+    if ismember(fig.Children(a),axssort)
+        axs(ca) = fig.Children(a);
+        ca = ca + 1;
+    end
+end
+
+end
+
 function [axs, lns] = getExplorable(fig)
 % Gets pointers to axes and lines from parent figure marked 'explorable'
 
@@ -296,14 +330,15 @@ end
 
 end
 
-function [figdat] = getAxesData(ax)
-% Gets explorable (selectable) data and labels from an axes.
+function [figdat] = getAxesData(ax, lns)
+% Gets explorable (selectable) data and labels from an axes. <lns> is a
+% list of selectable line objects.
 
 c = 1; % counter
 figdat = cell(1,1);
 for n = 1:length(ax.Children) % loop over lines on the axes
     ln = ax.Children(n);
-    if strcmp(ln.Tag, 'Explorable')
+    if ismember(ln, lns)
         % Get x and y data
         if any(strcmp(ln.Type, {'contour','surface'})) && isvector(ln.XData)
             [x,y] = meshgrid(ln.XData,ln.YData);
