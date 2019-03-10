@@ -2,15 +2,11 @@
 
 % First generate the main figure to serve as the ui window.
 mainfig = figure;
-sf = surf(160*membrane(1,100));
+sf = surf(160*membrane(1,100), 'EdgeColor','none');
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
 zlabel('z')
-
-ax = mainfig.Children;
-ax.Tag = 'Explorable';
-sf.Tag = 'Explorable'; 
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
@@ -21,10 +17,10 @@ pbtn_callback = {@ userCallback, phrase};
 
 % Set two aditional options
 usefigdat = true; % use data from figure for display boxes
-linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
+linkselect = false; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, [], usefigdat, linkselect );
+exploreResults( mainfig, pbtn_callback, sf, [], usefigdat, linkselect );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, slct, ui, phrase)
