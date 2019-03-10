@@ -206,7 +206,7 @@ for ch = 1:length(children)
     children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
 end
 
-% --- Make non-explorable axes children 'unpickable' ---
+% --- Make non-explorable axes children 'unpickable' --- %
 % Set the 'PickableParts' property for non-explorable axes children to
 % 'none'.
 % We only need to consider axes that are marked explorable
