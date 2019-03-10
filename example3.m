@@ -5,7 +5,7 @@ clear; clc;
 mainfig = figure;
 [~,cnt] = contourf(160*membrane(1,100));
 cb = colorbar;
-cb.AxisLocationMode = 'manual';
+% cb.AxisLocationMode = 'manual';
 title('Contour Plot')
 xlabel('x')
 ylabel('y')

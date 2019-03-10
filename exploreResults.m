@@ -115,8 +115,11 @@ end
 % Resize the figure and position the plots to fit the ui
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 nch = length(children); % number of children in figure
-cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
-
+if nch > 1
+    cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
+else
+    cbmap = strcmp(get(children, 'Type'),'colorbar');
+end
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
