@@ -4,11 +4,11 @@ clear; clc;
 % First generate the main figure to serve as the ui window.
 mainfig = figure;
 [~,cnt] = contourf(160*membrane(1,100));
-colorbar
-title('Surf Plot')
+cb = colorbar;
+cb.AxisLocationMode = 'manual';
+title('Contour Plot')
 xlabel('x')
 ylabel('y')
-zlabel('z')
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function

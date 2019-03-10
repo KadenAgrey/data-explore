@@ -113,8 +113,10 @@ end
 
 % --- Figure size and plot positioning --- %
 % Resize the figure and position the plots to fit the ui
-children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes (not always!)
+children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 nch = length(children); % number of children in figure
+cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
+
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
@@ -129,9 +131,10 @@ for ch = 1:nch
     end
 end
 
-ax_pos = getAsMat(fig.Children, 'Position');
-ax_siz = ax_pos(:,3:4); % save plot sizes now as they can automagically change
-ax_sub = getSubPlotInd(ax_pos); % subplot-like indices for each child (cell array)
+ax_pos = getAsMat(children, 'Position');
+ax_siz = ax_pos(:,3:4); % save plot sizes now - they can automagically change
+ax_sub = getSubPlotInd(ax_pos(~cbmap,:)); % subplot-like indices for children (cell array)
+ax_sub = assignCBSubPlotInd(children, ax_sub, cbmap);
 ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
 nrow = max(ax_row);
 
@@ -196,8 +199,8 @@ fig.OuterPosition(2) = 50; % move to the bottom of the screen
 fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
 
 % Reset the position sizes incase they have magically changed
-for ch = 1:length(fig.Children)
-    fig.Children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
+for ch = 1:length(children)
+    children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
 end
 
 % --- Make non-explorable axes children 'unpickable' ---
@@ -564,6 +567,23 @@ if dif4 > 0
 end
 
 txt.Units = unit; % reset units
+
+end
+
+function [ax_sub_new] = assignCBSubPlotInd(children, ax_sub, cbmap)
+% Assign colorbars the same row and column as their associated axes.
+
+n = 0; % offset
+ax_sub_new = cell(length(children),2);
+for c = 1:length(children)
+    if cbmap(c)
+        % Hidden colorbar property 'Axes' used
+        ax_sub_new(c,:) = ax_sub( children(c).Axes==children(~cbmap),: );
+        n = n + 1;
+    else
+        ax_sub_new(c,:) = ax_sub(c-n,:);
+    end
+end
 
 end
 
