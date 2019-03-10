@@ -1,17 +1,14 @@
 % Example script on how to setup and launch the data explore function
+clear; clc;
 
 % First generate the main figure to serve as the ui window.
 mainfig = figure;
-[~,sf] = contourf(160*membrane(1,100));
+[~,cnt] = contourf(160*membrane(1,100));
 colorbar
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
 zlabel('z')
-
-ax = mainfig.Children;
-ax(end).Tag = 'Explorable';
-sf.Tag = 'Explorable'; 
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
@@ -22,10 +19,10 @@ pbtn_callback = {@ userCallback, phrase};
 
 % Set two aditional options
 usefigdat = true; % use data from figure for display boxes
-linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
+linkselect = false; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, [], usefigdat, linkselect );
+exploreResults( mainfig, pbtn_callback, cnt, [], usefigdat, linkselect );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, slct, ui, phrase)

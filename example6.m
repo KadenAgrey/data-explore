@@ -1,4 +1,5 @@
 % Example script on how to setup and launch the data explore function
+clear; clc;
 
 % First generate the main figure to serve as the ui window.
 mainfig = figure;
@@ -18,25 +19,19 @@ for plt = 1:6
     end
 
     if plt == 1
-        ln1 = plot(x, sin(x).*cos(2*x), 'o');
+        lines(1) = plot(x, sin(x).*cos(2*x), 'o');
     elseif plt == 4
-        ln1 = plot(x, tan(x), 'o');
+        lines(3) = plot(x, tan(x), 'o');
     elseif plt == 3
-        ln1 = plot(x, sin(x), 'o');
+        lines(2) = plot(x, sin(x), 'o');
     else
-        ln1 = plot(x, cos(2*x), 'o');
+        lines(length(lines)+1) = plot(x, cos(2*x), 'o');
     end
 
     title(['Plot ' num2str(plt)])
     xlabel('x')
     ylabel('y')
 
-    % In this simple case we have one axes and two lines, however we only want 
-    % the first line to be selectable. To determine which lines will be made
-    % selectable the user must set the 'Tag' property of the axes and line as
-    % 'Explorable'.
-    ln1.Tag = 'Explorable'; % We only choose the sine line. 
-    ax.Tag = 'Explorable'; % This is set to refine the search path. Though the search path should never be large so I should change this.
 end
 
 %% Launch esploreData
@@ -52,14 +47,14 @@ end
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 cutoff = 1; % just an argument for the example function
-pbtn_callback = {@ userCallback, ln1, [], []};
+pbtn_callback = {@ userCallback, lines(1), [], []};
 
 % Set two aditional options
 usefigdat = true; % use data from figure for display boxes
 linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, [], usefigdat, linkselect );
+exploreResults( mainfig, pbtn_callback, lines, [], usefigdat, linkselect );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, slct, ui, ln, extrapnt, newfig)
