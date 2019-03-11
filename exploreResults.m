@@ -192,7 +192,7 @@ for row = nrow:-1:1 % start from the bottom
     end
 
     % Update the axes positions recorded
-    ax_pos_new = getAsMat(children, 'Position');
+    ax_pos_new = getAsMat(children, 'Position'); % ################## CHNAGE LATER
     ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
 
 end
