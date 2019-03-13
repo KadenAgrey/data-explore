@@ -18,7 +18,9 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, lines, txtedtdat, usefigdat
 %       ln.PickableParts = 'visible'
 % 
 %   TODO: Set fig, axes, and line units carefully
-%   TODO: What if the colorbar has been manually positioned by the user?
+%   TODO: manually positioned colorbars shuoldn't always be aligned with the
+%   row they belong to - switch to an algorithm that offsets row members
+%   instead of aligns them.
 %   TODO: Find out how to force Matlab to wait for the renderer before
 %   executing the mainplot formatting.
 % 
@@ -110,8 +112,8 @@ for p = 1:length(xplr.ln)
 end
 
 %% --- Prepair Main Figure --- %%
-
 % --- Figure size and plot positioning --- %
+% TODO: clean up algorithm
 % Resize the figure and position the plots to fit the ui
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 nch = length(children); % number of children in figure
@@ -158,6 +160,9 @@ for row = 1:nrow
 end
 
 % Reposition children
+% TODO: manually positioned colorbars shuoldn't always be aligned with the
+% row they belong to - switch to an algorithm that offsets row members
+% instead of aligns them.
 ax_pos_new = ax_pos; % initially nothing has moved
 for row = nrow:-1:1 % start from the bottom
     % Add text/edit padding if this row requires it
