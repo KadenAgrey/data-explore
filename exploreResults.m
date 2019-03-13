@@ -18,7 +18,9 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, lines, txtedtdat, usefigdat
 %       ln.PickableParts = 'visible'
 % 
 %   TODO: Set fig, axes, and line units carefully
-%   TODO: What if the colorbar has been manually positioned by the user?
+%   TODO: manually positioned colorbars shuoldn't always be aligned with the
+%   row they belong to - switch to an algorithm that offsets row members
+%   instead of aligns them.
 %   TODO: Find out how to force Matlab to wait for the renderer before
 %   executing the mainplot formatting.
 % 
@@ -110,11 +112,16 @@ for p = 1:length(xplr.ln)
 end
 
 %% --- Prepair Main Figure --- %%
-
 % --- Figure size and plot positioning --- %
+% TODO: clean up algorithm
 % Resize the figure and position the plots to fit the ui
-children = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar'); % colorbars are attached to an axes (not always!)
+children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 nch = length(children); % number of children in figure
+if nch > 1
+    cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
+else
+    cbmap = strcmp(get(children, 'Type'),'colorbar');
+end
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
@@ -129,9 +136,10 @@ for ch = 1:nch
     end
 end
 
-ax_pos = getAsMat(fig.Children, 'Position');
-ax_siz = ax_pos(:,3:4); % save plot sizes now as they can automagically change
-ax_sub = getSubPlotInd(ax_pos); % subplot-like indices for each child (cell array)
+ax_pos = getAsMat(children, 'Position');
+ax_siz = ax_pos(:,3:4); % save plot sizes now - they can automagically change
+ax_sub = getSubPlotInd(ax_pos(~cbmap,:)); % subplot-like indices for children (cell array)
+ax_sub = assignCBSubPlotInd(children, ax_sub, cbmap);
 ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
 nrow = max(ax_row);
 
@@ -152,6 +160,9 @@ for row = 1:nrow
 end
 
 % Reposition children
+% TODO: manually positioned colorbars shuoldn't always be aligned with the
+% row they belong to - switch to an algorithm that offsets row members
+% instead of aligns them.
 ax_pos_new = ax_pos; % initially nothing has moved
 for row = nrow:-1:1 % start from the bottom
     % Add text/edit padding if this row requires it
@@ -186,7 +197,7 @@ for row = nrow:-1:1 % start from the bottom
     end
 
     % Update the axes positions recorded
-    ax_pos_new = getAsMat(children, 'Position');
+    ax_pos_new = getAsMat(children, 'Position'); % ################## CHNAGE LATER
     ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
 
 end
@@ -196,11 +207,11 @@ fig.OuterPosition(2) = 50; % move to the bottom of the screen
 fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
 
 % Reset the position sizes incase they have magically changed
-for ch = 1:length(fig.Children)
-    fig.Children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
+for ch = 1:length(children)
+    children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
 end
 
-% --- Make non-explorable axes children 'unpickable' ---
+% --- Make non-explorable axes children 'unpickable' --- %
 % Set the 'PickableParts' property for non-explorable axes children to
 % 'none'.
 % We only need to consider axes that are marked explorable
@@ -564,6 +575,23 @@ if dif4 > 0
 end
 
 txt.Units = unit; % reset units
+
+end
+
+function [ax_sub_new] = assignCBSubPlotInd(children, ax_sub, cbmap)
+% Assign colorbars the same row and column as their associated axes.
+
+n = 0; % offset
+ax_sub_new = cell(length(children),2);
+for c = 1:length(children)
+    if cbmap(c)
+        % Hidden colorbar property 'Axes' used
+        ax_sub_new(c,:) = ax_sub( children(c).Axes==children(~cbmap),: );
+        n = n + 1;
+    else
+        ax_sub_new(c,:) = ax_sub(c-n,:);
+    end
+end
 
 end
 
