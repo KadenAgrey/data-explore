@@ -24,7 +24,7 @@ for plt = 1:8
     if plt == 3
         cb.Location ='northoutside';
     end
-    cb.AxisLocationMode = 'manual';
+%     cb.AxisLocationMode = 'manual';
 
     title(['Plot ' num2str(plt)])
     xlabel('x')
