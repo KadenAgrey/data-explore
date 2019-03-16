@@ -103,10 +103,10 @@ xplr.ax = getExplorableAx(fig, lines);
 % array with numel(ui.field) equal to the number of explorable objects in
 % the corresponding field in xplr. (Eg, one figure, possibly several axes
 % and several lines for each axes). Stored in each field will be 
-ui = struct('fig', [], 'ax', [], 'ln', []);
+ui = struct('fig', [], 'ax', []);
 
 % Get objects that selected points will be associated with
-slct = struct('pnt', [], 'xplobj', []);
+slct = struct('pnt', [], 'xplobj', [], 'ind', []);
 for p = 1:length(xplr.ln)
     slct(p).xplobj = xplr.ln(p);
 end
