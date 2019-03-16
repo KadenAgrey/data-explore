@@ -310,37 +310,6 @@ end
 
 end
 
-function [axs, lns] = getExplorable(fig)
-% Gets pointers to axes and lines from parent figure marked 'explorable'
-
-ca = 1; cl = 1; % counters
-% Loop over all children of parent figure
-for a = length(fig.Children):-1:1
-% We loop backwards because figure children are in reverse order of
-% creation, and it's likely that the users data is organized in order of
-% creation.
-
-    % If user set 'Tag' field to 'Explorable' add child to axes list
-    if strcmp(fig.Children(a).Tag, 'Explorable')
-
-        axs(ca) = fig.Children(a); % Get axes pointer
-
-        % Loop over all children of parent axes
-        for lnn = length(axs(ca).Children):-1:1 % looping backwards for the same reason
-            % If user set 'Tag' field to 'Explorable' add child to line list
-            if strcmp(axs(ca).Children(lnn).Tag, 'Explorable')
-                lns(cl) = axs(ca).Children(lnn); % Get line pointer
-                cl = cl + 1; % increment line counter
-            end
-        end
-
-        ca = ca + 1; % increment axes counter
-
-    end
-end
-
-end
-
 function [figdat] = getAxesData(ax, lns)
 % Gets explorable (selectable) data and labels from an axes. <lns> is a
 % list of selectable line objects.
