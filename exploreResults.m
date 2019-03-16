@@ -262,7 +262,7 @@ for a = 1:nax
 end
 
 % Assign user callback function to push button
-ui.fig.pbtn.Callback = {@ viewDetailsCallback, slct, ui, pbtnfcn};
+ui.fig.pbtn.Callback = {@ pbtnCallback, ui, slct, pbtnfcn};
 
 % Assign ButtonDownFcn to selectable objects in figures
 for ob = 1:length(slct)
@@ -697,7 +697,7 @@ ui.fig.pbtn.Callback{2} = slct;
 
 end
 
-function [] = viewDetailsCallback(src, event, slct, ui, usrcall)
+function [] = pbtnCallback(src, event, ui, slct, usrcall)
 % Callback function for the view details push button. Takes the currently
 % selected point information and the user supplied anonymous function with
 % arguments. After checking that points have been properly selected will
@@ -705,6 +705,7 @@ function [] = viewDetailsCallback(src, event, slct, ui, usrcall)
 % <src>, <event>, and explore_results defined <slct>.
 
 % If points haven't all been selected do nothing.
+% TODO: if there are multiple lines on an axes does this still work?
 if ~isfield(slct, 'ind')
     return
 end
@@ -714,7 +715,23 @@ for p = 1:length(slct)
     end
 end
 
+% Define the extrenal information structures. These are designed to make it
+% easier to axes selected point and all associated data.
+usrui = ui;
+usrui.xplr = slct;
+usrui.xplr = rmfield(usrui.xplr, 'ind');
+
+usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
+for p = 1:length(slct)
+    usrslct(p).ind = slct(p).ind;
+    usrslct(p).x = slct(p).xplobj.XData;
+    usrslct(p).y = slct(p).xplobj.YData;
+    if isproperty(slct(p).xplobj, 'ZData')
+        usrslct(p).z = slct(p).xplobj.ZData;
+    end
+end
+
 % Call the user's function and pass options through
-usrcall{1}( src, event, slct, ui, usrcall{2:end} );
+usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
