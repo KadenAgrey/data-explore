@@ -693,7 +693,7 @@ for s = 1:length(slct)
 end
 
 % Update slct structure in 'View Details' callback function
-ui.fig.pbtn.Callback{2} = slct;
+ui.fig.pbtn.Callback{3} = slct;
 
 end
 
@@ -717,16 +717,20 @@ end
 
 % Define the extrenal information structures. These are designed to make it
 % easier to axes selected point and all associated data.
-usrui = ui;
-usrui.xplr = slct;
-usrui.xplr = rmfield(usrui.xplr, 'ind');
 
+usrui = ui;
+usrui.xplr = struct('ln',[],'pnt',[]);
 usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
 for p = 1:length(slct)
+    % Setup ui struct user will see
+    usrui.xplr(p).ln = slct(p).xplobj;
+    usrui.xplr(p).pnt = slct(p).pnt;
+
+    % Setup slct struct user will see
     usrslct(p).ind = slct(p).ind;
     usrslct(p).x = slct(p).xplobj.XData;
     usrslct(p).y = slct(p).xplobj.YData;
-    if isproperty(slct(p).xplobj, 'ZData')
+    if isprop(slct(p).xplobj, 'ZData')
         usrslct(p).z = slct(p).xplobj.ZData;
     end
 end
