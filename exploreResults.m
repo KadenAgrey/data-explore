@@ -106,7 +106,7 @@ xplr.ax = getExplorableAx(fig, lines);
 ui = struct('fig', [], 'ax', []);
 
 % Get objects that selected points will be associated with
-slct = struct('pnt', [], 'xplobj', [], 'ind', []);
+slct = struct('pnt', [], 'xplobj', []);
 for p = 1:length(xplr.ln)
     slct(p).xplobj = xplr.ln(p);
 end
