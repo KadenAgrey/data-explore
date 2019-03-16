@@ -55,7 +55,7 @@ linkselect = true; % if there are multiple plots select the same point on all of
 exploreResults( mainfig, pbtn_callback, lines1, uispec, usefigdat, linkselect );
 
 %% --- Example User Function --- %%
-function [ newfig ] = userCallback(src, event, slct, ui, ln, extrapnt, cutoff, newfig)
+function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, newfig)
 % An example of a function to assign to the ui push button. See
 % documentatoin for details on the reserved input arguments for src, event,
 % slct and ui.
@@ -73,7 +73,7 @@ end
 extrapnt = line(ln.XData(ind), ln.YData(ind), 'LineStyle', 'none', 'Marker', '+', 'MarkerSize', 10);
 
 % If this point on the third plot is below the cutoff
-if abs(slct(3).xplobj.YData(ind)) < cutoff
+if abs(ui.xplr(3).ln.YData(ind)) < cutoff
     if ~isempty(newfig) && isvalid(newfig)
         close(newfig);
     end
