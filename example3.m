@@ -25,7 +25,7 @@ linkselect = false; % if there are multiple plots select the same point on all o
 exploreResults( mainfig, pbtn_callback, cnt, [], usefigdat, linkselect );
 
 %% --- Example User Function --- %%
-function userCallback(src, event, slct, ui, phrase)
+function userCallback(src, event, ui, slct, phrase)
 % An example of a function to assign to the ui push button. See
 % documentation for details on the reserved input arguments for src, event,
 % slct and ui.
