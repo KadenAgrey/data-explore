@@ -49,12 +49,8 @@ end
 cutoff = 1; % just an argument for the example function
 pbtn_callback = {@ userCallback, lines(1), [], []};
 
-% Set two aditional options
-usefigdat = true; % use data from figure for display boxes
-linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
-
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines, [], usefigdat, linkselect );
+exploreResults( mainfig, pbtn_callback, lines, 'DataBoxFromAxes', true, 'SelectionLinkAxes', true );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, newfig)

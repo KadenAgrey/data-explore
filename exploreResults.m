@@ -1,4 +1,4 @@
-function [ fig ] = exploreResults( mainfig, pbtnfcn, lines, txtedtdat, usefigdat, linkselect )
+function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 % exploreResults launches an interactive plot from which data points can be
 % selected and detailed results for that case viewed.
 % By: Kaden Agrey
@@ -74,6 +74,30 @@ function [ fig ] = exploreResults( mainfig, pbtnfcn, lines, txtedtdat, usefigdat
 %   2019.03.09: Change from using Tag to indicate selectable lines to
 %   passing a list of objects, this is more Matlab-like
 
+%% --- Parse Inputs --- %%
+in = inputParser(); % initialize parser object
+
+% validDataBoxMode = {'active', 'inactive'};
+% checkDataBoxMode = @(s) validateString(s, validDataBoxMode);
+
+% Required
+in.addRequired('fig', @isgraphics); % figure handle to build ui on
+in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
+% Optional Positional
+in.addRequired('lines'); % lines to select data points from (make optional later)
+% Optional Name/Value Pairs
+in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
+in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
+in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
+% in.addParameter('SelectionNumber', 1); % number of data points that can be selected per axes
+% in.addParameter('SelectionProperties', []); % properties of selection marker
+% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons
+
+in.parse(fig, pbtnfcn, varargin{:})
+
+% Pull fig out of the object for easier access
+fig = in.Results.fig;
+
 %% --- Initialize --- %%
 % These variables define the size and spacing of the ui objects
 pbtn_h = 30; % [pixels] PushButton height
@@ -81,23 +105,14 @@ pbtn_blw_marg = 5; % [pixels] Margin below PushButton
 txtedt_h = 20*2; % [pixels] Text & Edit box height
 txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
 
-% Generate or pass on the figure
-if isa(mainfig, 'function_handle')
-    fig = mainfig();
-elseif isgraphics(mainfig,'figure')
-    fig = mainfig;
-else
-    error('The main plot variable must be a figure or an anonymous function that will generate a figure')
-end
-
 % Initialize xplr struct with figure objects and slct struct with graphics 
 % objects to select points from. ui struct is also initialized, each field
 % holds the ui objects by associated graphics object. (push buttons for the
 % figure, text/edit boxes for each axes they are placed under etc.)
 
 % Get all axes parenting explorable lines
-xplr = struct('ax', [], 'ln', lines);
-xplr.ax = getExplorableAx(fig, lines);
+xplr = struct('ax', [], 'ln', in.Results.lines);
+xplr.ax = getExplorableAx(fig, in.Results.lines);
 
 % Initialize the struct to reference all ui objects. Each field will be an
 % array with numel(ui.field) equal to the number of explorable objects in
@@ -151,7 +166,7 @@ for row = 1:nrow
 
         % If the child is Explorable then add the row to the pad list
         ind = children(ch)==xplr.ax;
-        if any(ind) && ( usefigdat || ~isempty(txtedtdat(ind)) )
+        if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
             pad_row(length(pad_row)+1,1) = row;
             break
         end
@@ -224,9 +239,7 @@ for a = 1:length(xplr.ax)
 end
 
 %% --- Setup UI --- %%
-if isempty(txtedtdat)
-    txtedtdat = cell(1,length(xplr.ax));
-end
+uispec = cell(1,length(xplr.ax));
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
@@ -247,28 +260,28 @@ for a = 1:nax
     txtopt = {'Position', [0 0 75 txtedt_h/2]};
     editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
 
-    if usefigdat % user setting to use figure axes data
+    if in.Results.DataBoxFromAxes % user setting to use figure axes data
         axdat = getAxesData(xplr.ax(a), xplr.ln);
-        if isempty(txtedtdat{a})
-            txtedtdat{a} = axdat;
+        if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
+            uispec{a} = axdat;
         else
-            txtedtdat{a} = [axdat, txtedtdat{a}];
+            uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
         end
     end
 
     % Make the text/edit pair
-    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), txtedtdat{a}, txtedtmarg, txtopt, editopt);
+    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), uispec{a}, txtedtmarg, txtopt, editopt);
 
 end
 
 % Assign user callback function to push button
-ui.fig.pbtn.Callback = {@ pbtnCallback, ui, slct, pbtnfcn};
+ui.fig.pbtn.Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn};
 
 % Assign ButtonDownFcn to selectable objects in figures
 for ob = 1:length(slct)
     % Pass structs with selected point information (slct) and updatable ui 
     % objects (ui). Pass index of current selectable object.
-    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, linkselect};
+    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
 end
 
 %% Finalize Figure Properties
