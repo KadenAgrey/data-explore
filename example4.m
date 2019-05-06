@@ -16,12 +16,8 @@ zlabel('z')
 phrase = 'Display Me!'; % just an argument for the example function
 pbtn_callback = {@ userCallback, phrase};
 
-% Set two aditional options
-usefigdat = true; % use data from figure for display boxes
-linkselect = false; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
-
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, ln, [], usefigdat, linkselect );
+exploreResults( mainfig, pbtn_callback, ln, 'DataBoxAxes', true, 'SelectionLink', false );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, phrase)
