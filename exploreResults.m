@@ -237,9 +237,6 @@ end
 
 %% --- Setup UI --- %%
 uispec = cell(1,length(xplr.ax));
-if isempty(in.Results.DataBoxUser)
-    in.Results.DataBoxUser = cell(1,length(xplr.ax));
-end
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
