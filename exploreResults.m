@@ -77,18 +77,21 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
 
+% validDataBoxMode = {'active', 'inactive'};
+% checkDataBoxMode = @(s) validateString(s, validDataBoxMode);
+
 % Required
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
 in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
 % Optional Positional
 in.addRequired('lines'); % lines to select data points from (make optional later)
 % Optional Name/Value Pairs
-in.addParameter('DataBoxAxes',true); % display data from axes in boxes
-in.addParameter('DataBoxUser',[]); % display boxes will be added with user data
-in.addParameter('SelectionLink',true); % link selected points accross all selectable objects
+in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
+in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
+in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
 % in.addParameter('SelectionNumber', 1); % number of data points that can be selected per axes
-% in.addParameter('SelectionLineProperties', []); % properties of selection marker
-% in.addParameter('DataBoxEdit', 'off'); % allow manual entry of data into display boxes (will be passed to push buttons
+% in.addParameter('SelectionProperties', []); % properties of selection marker
+% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons
 
 in.parse(fig, pbtnfcn, varargin{:})
 
@@ -163,7 +166,7 @@ for row = 1:nrow
 
         % If the child is Explorable then add the row to the pad list
         ind = children(ch)==xplr.ax;
-        if any(ind) && ( in.Results.DataBoxAxes || ~isempty(in.Results.DataBoxUser(ind)) )
+        if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
             pad_row(length(pad_row)+1,1) = row;
             break
         end
@@ -257,12 +260,12 @@ for a = 1:nax
     txtopt = {'Position', [0 0 75 txtedt_h/2]};
     editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
 
-    if in.Results.DataBoxAxes % user setting to use figure axes data
+    if in.Results.DataBoxFromAxes % user setting to use figure axes data
         axdat = getAxesData(xplr.ax(a), xplr.ln);
-        if isempty(in.Results.DataBoxUser) || isempty(in.Results.DataBoxUser{a})
+        if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
             uispec{a} = axdat;
         else
-            uispec{a} = [axdat, in.Results.DataBoxUser{a}];
+            uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
         end
     end
 
@@ -278,7 +281,7 @@ ui.fig.pbtn.Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn};
 for ob = 1:length(slct)
     % Pass structs with selected point information (slct) and updatable ui 
     % objects (ui). Pass index of current selectable object.
-    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLink};
+    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
 end
 
 %% Finalize Figure Properties
