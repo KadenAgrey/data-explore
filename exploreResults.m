@@ -175,9 +175,9 @@ for row = 1:nrow
 end
 
 % Reposition children
-% TODO: manually positioned colorbars shuoldn't always be aligned with the
+% TODO: manually positioned colorbars shouldn't always be aligned with the
 % row they belong to - switch to an algorithm that offsets row members
-% instead of aligns them.
+% equally instead of aligning them.
 ax_pos_new = ax_pos; % initially nothing has moved
 for row = nrow:-1:1 % start from the bottom
     % Add text/edit padding if this row requires it
