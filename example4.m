@@ -14,7 +14,7 @@ zlabel('z')
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 phrase = 'Display Me!'; % just an argument for the example function
-pbtn_callback = {@ userCallback, phrase};
+pbtn_callback = {'User Function', @ userCallback, phrase};
 
 % Finally launch the ui figure
 exploreResults( mainfig, pbtn_callback, ln, 'DataBoxFromAxes', true, 'SelectionLinkAxes', false );
