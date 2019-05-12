@@ -5,9 +5,30 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 % v1.1 2018.07.11
 % 
 % Input
-%   mainplot: This can be a figure handle or anonymous function that
-%   returns a figure (with no input arguments). The script will 
+%   mainplot: Figure handle on which to place ui elements. The script will 
 %   automatically add space for the for the ui elements.
+% 
+% 
+%   pbtnfcn: This argument is used to initialize the push buttons. It 
+%   should be a cell array with the button name as the first column, a 
+%   function handle as the second column and arguments to the function as 
+%   later columns. Each row corresponds to a different pushbutton, which 
+%   will be added to the figure as needed.
+%   The first 4 arguments to the function MUST be reserved for
+%   exploreResults. The latter arguments should correspond to those in the
+%   cell array. Eg.
+%       function argout = myFunc(src, event, slct, ui, arg1, arg2, ... )
+%       src: matlab variable pointing to the src of the callback.
+%       event: matlab variable giving event information
+%       slct: exploreResults variable with information on the selected
+%       points. 
+% TODO: fields have been changed, update comment here
+%           slct(i).xplobj: graphics object with explorable data
+%           slct(i).pnt: list of graphics objects for selected points
+%           slct(i).ind: list of selected linear indices from explorable 
+%           data
+%       ui: exploreResults variable with pointers to all ui elements
+% 
 % 
 %   lines: A list of the graphics objects that will be selectable. This is
 %   not a list of axes, but of the axes children that will be selectable.
@@ -20,30 +41,10 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %   TODO: Set fig, axes, and line units carefully
 %   TODO: manually positioned colorbars shuoldn't always be aligned with the
 %   row they belong to - switch to an algorithm that offsets row members
-%   instead of aligns them.
+%   instead of aligning them.
 %   TODO: Find out how to force Matlab to wait for the renderer before
-%   executing the mainplot formatting.
+%   executing the mainplot formatting. - drawnow; doesn't seem to work
 % 
-%   pbtnfcn: This argument is used to initialize the push button called
-%   'View Details'. It should be a cell array with an anonymous function
-%   handle as the first element and arguments to the function as later
-%   elements.
-%   The first 4 arguments to this function MUST be reserved for
-%   exploreResults. The latter arguments should correspond to those in the
-%   cell array. 
-%       function argout = myFunc(src, event, slct, ui, arg1, arg2, ... )
-%       src: matlab variable pointing to the src of the callback.
-%       event: matlab variable giving event information
-%       slct: exploreResults variable with information on the selected
-%       points. 
-%           slct(i).xplobj: graphics object with explorable data
-%           slct(i).pnt: list of graphics objects for selected points
-%           slct(i).ind: list of selected linear indices from explorable 
-%           data
-%       ui: exploreResults variable with pointers to all ui elements
-%       created
-% 
-%   TODO: Currently only one push button can be set - allow multiple
 % 
 %   txtedtdat: A cell array with name/data pairs that will display
 %   information on the selected points under each axes. The cell array
@@ -73,6 +74,8 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %   2018.09.26: Set unexplorable lines to not be 'pickable'.
 %   2019.03.09: Change from using Tag to indicate selectable lines to
 %   passing a list of objects, this is more Matlab-like
+%   2019.05.05: Added input parsing and param/value arguments
+%   2019.05.10: Added support for multiple user push button functions
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
@@ -244,13 +247,17 @@ uispec = cell(1,length(xplr.ax));
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
 
-ui.fig.pbtn = uicontrol(fig, 'Style', 'pushbutton',... % make the button
-                             'String', 'View Details',...
-                             'Units', 'pixels',...
-                             'Position', [0 0 150 pbtn_h]);
+pbwidth = 150;
+ui.fig.pbtn = gobjects(size(in.Results.pbtnfcn,1),1);
+for pb = 1:size(in.Results.pbtnfcn,1)
+    ui.fig.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',... % make the button
+                                 'String', in.Results.pbtnfcn{pb,1},...
+                                 'Units', 'pixels',...
+                                 'Position', [0 0 pbwidth pbtn_h]);
 
-ui.fig.pbtn.Position = ui.fig.pbtn.Position + [horz pbtn_blw_marg 0 0];
-% ui.fig.pbtn.Units = 'normalized'; % reset units
+    ui.fig.pbtn(pb).Position = ui.fig.pbtn(pb).Position + [horz + pbwidth*(pb-1) pbtn_blw_marg 0 0];
+    % ui.fig.pbtn(pb).Units = 'normalized'; % reset units
+end
 
 % Make text and edit objects for each explorable axes
 nax = length(xplr.ax);
@@ -274,8 +281,10 @@ for a = 1:nax
 
 end
 
-% Assign user callback function to push button
-ui.fig.pbtn.Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn};
+% Assign user callback functions to push buttons
+for pb = 1:size(in.Results.pbtnfcn,1)
+    ui.fig.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
+end
 
 % Assign ButtonDownFcn to selectable objects in figures
 for ob = 1:length(slct)
@@ -284,7 +293,7 @@ for ob = 1:length(slct)
     slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
 end
 
-%% Finalize Figure Properties
+%% --- Finalize Figure Properties --- %%
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
@@ -706,7 +715,9 @@ for s = 1:length(slct)
 end
 
 % Update slct structure in 'View Details' callback function
-ui.fig.pbtn.Callback{3} = slct;
+for pb  = ui.fig.pbtn'
+    pb.Callback{3} = slct;
+end
 
 end
 
@@ -729,7 +740,7 @@ for p = 1:length(slct)
 end
 
 % Define the extrenal information structures. These are designed to make it
-% easier to axes selected point and all associated data.
+% easier to access selected point and all associated data.
 
 usrui = ui;
 usrui.xplr = struct('ln',[],'pnt',[]);
