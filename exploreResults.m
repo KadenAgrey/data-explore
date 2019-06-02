@@ -89,7 +89,7 @@ in = inputParser(); % initialize parser object
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
 in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
 % Optional Positional
-in.addOptional('lines',[]); % lines to select data points from (make optional later)
+in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
 % Optional Name/Value Pairs
 in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
 in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
@@ -310,9 +310,10 @@ function [lns] = getExplorableLines(fig, lns)
 
 if isempty(lns)
     ch = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar');
-    for c = ch'
-        tmp = findobj(c.Children, 'flat', '-not', 'Type', 'text');
-        lns(length(lns)+1:length(tmp)) = tmp;
+    lns = gobjects(length(ch),1);
+    for c = 1:length(ch)
+        tmp = findobj(ch(c).Children, 'flat', '-not', 'Type', 'text');
+        lns(c) = tmp(end);
     end
 end
 
