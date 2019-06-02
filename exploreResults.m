@@ -56,10 +56,12 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %   were created and the data given to each name must have the same number
 %   of elements as the line from which it will be selected.
 % 
+% 
 %   usefigdat: Additionally the user can allow the function to
 %   automatically get the data from the axes and line objects by setting 
 %   this option to true. This will create two text/edit pairs for each 
 %   "Explorable" axes.
+% 
 % 
 %   linkselect: When this option is set to true it will force all
 %   axes with explorable children to have the same index selected. 
@@ -87,7 +89,7 @@ in = inputParser(); % initialize parser object
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
 in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
 % Optional Positional
-in.addRequired('lines'); % lines to select data points from (make optional later)
+in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
 % Optional Name/Value Pairs
 in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
 in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
@@ -114,8 +116,8 @@ txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
 % figure, text/edit boxes for each axes they are placed under etc.)
 
 % Get all axes parenting explorable lines
-xplr = struct('ax', [], 'ln', in.Results.lines);
-xplr.ax = getExplorableAx(fig, in.Results.lines);
+xplr = struct('ax', [], 'ln', getExplorableLines(fig, in.Results.lines));
+xplr.ax = getExplorableAx(fig, xplr.ln);
 
 % Initialize the struct to reference all ui objects. Each field will be an
 % array with numel(ui.field) equal to the number of explorable objects in
@@ -302,6 +304,21 @@ end
 
 %% --- Functions --- %%
 % --- Getters --- %
+function [lns] = getExplorableLines(fig, lns)
+% Gets axes for line/contours/surfaces etc. passed as arguments to
+% exploreResults and checks that they all belong to the figure <fig>.
+
+if isempty(lns)
+    ch = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar');
+    lns = gobjects(length(ch),1);
+    for c = 1:length(ch)
+        tmp = findobj(ch(c).Children, 'flat', '-not', 'Type', 'text');
+        lns(c) = tmp(end);
+    end
+end
+
+end
+
 function [axs] = getExplorableAx(fig, lns)
 % Gets axes for line/contours/surfaces etc. passed as arguments to
 % exploreResults and checks that they all belong to the figure <fig>.
