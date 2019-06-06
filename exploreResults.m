@@ -92,9 +92,10 @@ in.addRequired('pbtnfcn'); % function handle (with arguments) to call when butto
 in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
 % Optional Name/Value Pairs
 in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
-in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
+in.addParameter('DataBoxFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
-% in.addParameter('SelectionNumber', 1); % number of data points that can be selected per axes
+% in.addParameter('SelectionPerLine', inf); % number of data points that can be selected per axes
+% in.addParameter('SelectionPerAxes', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionProperties', []); % properties of selection marker
 % in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons
 
@@ -109,6 +110,9 @@ pbtn_h = 30; % [pixels] PushButton height
 pbtn_blw_marg = 5; % [pixels] Margin below PushButton
 txtedt_h = 20*2; % [pixels] Text & Edit box height
 txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
+slctopt_fields = {'SelectionLinkAxes'};
+% slctopt_fields = {'SelectionLinkAxes','SelectionPerLine',...
+%                   'SelectionPerAxes'};
 
 % Initialize xplr struct with figure objects and slct struct with graphics 
 % objects to select points from. ui struct is also initialized, each field
@@ -119,116 +123,144 @@ txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
 xplr = struct('ax', [], 'ln', getExplorableLines(fig, in.Results.lines));
 xplr.ax = getExplorableAx(fig, xplr.ln);
 
-% Initialize the struct to reference all ui objects. Each field will be an
-% array with numel(ui.field) equal to the number of explorable objects in
-% the corresponding field in xplr. (Eg, one figure, possibly several axes
-% and several lines for each axes). Stored in each field will be 
-ui = struct('fig', [], 'ax', []);
+% Initialize the struct to reference ui objects, this is passed to 
+% callbacks. 
+%   ui.pbtn is an array holding all pbtn objects
+%   ui.dcm holds the datacursormode object
+ui = struct('pbtn', [], 'dcm', datacursormode(fig));
 
-% Get objects that selected points will be associated with
-slct = struct('pnt', [], 'xplobj', []);
+% Get objects selected points will be associated with. This is passed to
+% callbacks.
+slct = struct('xplobj', [], 'data', []);
 for p = 1:length(xplr.ln)
     slct(p).xplobj = xplr.ln(p);
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ugly
+    if isempty(slct(p).xplobj.ZData)
+        slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
+                         slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData}; ...
+                        in.Results.DataBoxFromUser{p}];
+    else
+        slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
+                         slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData; ...
+                         slct(p).xplobj.Parent.ZLabel.String, slct(p).xplobj.ZData}; ...
+                        in.Results.DataBoxFromUser(p)];
+    end
+end
+
+% Define a struct containing selection options to pass to the callbacks
+slctopt = struct();
+for f = slctopt_fields
+    slctopt.(f{:}) = in.Results.(f{:});
 end
 
 %% --- Prepair Main Figure --- %%
 % --- Figure size and plot positioning --- %
-% TODO: clean up algorithm
-% Resize the figure and position the plots to fit the ui
-children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
-nch = length(children); % number of children in figure
-if nch > 1
-    cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
-else
-    cbmap = strcmp(get(children, 'Type'),'colorbar');
-end
+% % TODO: clean up algorithm
+% % Resize the figure and position the plots to fit the ui
+% children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
+% nch = length(children); % number of children in figure
+% if nch > 1
+%     cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
+% else
+%     cbmap = strcmp(get(children, 'Type'),'colorbar');
+% end
+% fig.Units = 'pixels';
+% set(fig.Children, 'Units', 'pixels');
+% 
+% % Get size of all the figure children
+% ax_tins = zeros(nch,4);
+% for ch = 1:nch
+%     % Some objects don't have a TightInset
+%     if isprop(children(ch), 'TightInset')
+%         ax_tins(ch,:) = children(ch).TightInset;
+%     else
+%         ax_tins(ch,:) = [0 0 0 0];
+%     end
+% end
+% 
+% ax_pos = getAsMat(children, 'Position');
+% ax_siz = ax_pos(:,3:4); % save plot sizes now - they can automagically change
+% ax_sub = getSubPlotInd(ax_pos(~cbmap,:)); % subplot-like indices for children (cell array)
+% ax_sub = assignCBSubPlotInd(children, ax_sub, cbmap);
+% ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
+% nrow = max(ax_row);
+% 
+% % Get rows that require padding (columns won't require padding)
+% pad_row = []; % list of rows requiring padding
+% for row = 1:nrow
+%     rowch = find(row==ax_row)';
+%     for ch = rowch
+% 
+%         % If the child is Explorable then add the row to the pad list
+%         ind = children(ch)==xplr.ax;
+%         if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
+%             pad_row(length(pad_row)+1,1) = row;
+%             break
+%         end
+% 
+%     end
+% end
+% 
+% % Reposition children
+% % TODO: manually positioned colorbars shouldn't always be aligned with the
+% % row they belong to - switch to an algorithm that offsets row members
+% % equally instead of aligning them.
+% ax_pos_new = ax_pos; % initially nothing has moved
+% for row = nrow:-1:1 % start from the bottom
+%     % Add text/edit padding if this row requires it
+%     if ismember(row, pad_row)
+%         axpad = txtedt_h + sum(txtedtmarg([2 4]));
+%     else
+%         axpad = txtedtmarg(2);
+%     end
+% 
+%     % Find the axes from which to get the height this row should start at
+%     rowch = find(row==ax_row); % children in this row
+%     rowcol = unique( cell2mat(ax_sub(rowch,2)) );
+% 
+%     rowt = max(ax_tins(rowch,:),[],1); % the largest TightInsets from this row (we only use the bottom and top)
+%     rowy = ax_pos(rowch(1),2) - rowt(2); % lowest y-position of this row
+% 
+%     % Note: here a 10 pixel overlap is allowed when checking if a figure is
+%     % below the row
+%     allsharecol = cellfun(@(C) any(ismember(C, rowcol)), ax_sub(:,2));
+%     allblw = ( sum(ax_pos(:,[2 4]), 2) + ax_tins(:,4) - 10 < rowy );
+%     chblw = find( allsharecol.*allblw ); % children below and sharing a column with this row
+% 
+%     if ~isempty(chblw)
+%         rowy = max( sum(ax_pos_new(chblw,[2 4]), 2) + ax_tins(chblw,4) ); % new y-position of this row
+%     else
+%         rowy = pbtn_h - txtedtmarg(2) + 5; % if this is the bottom row place it 5 pixels above the PushButtons
+%     end
+% 
+%     % Move all the axes of this row accordingly
+%     for ch = rowch'
+%         children(ch).Position(2) = rowy + rowt(2) + axpad;
+%     end
+% 
+%     % Update the axes positions recorded
+%     ax_pos_new = getAsMat(children, 'Position'); % ################## CHNAGE LATER
+%     ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
+% 
+% end
+% 
+% % Resize figure window
+% fig.OuterPosition(2) = 50; % move to the bottom of the screen
+% fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
+% 
+% % Reset the position sizes incase they have magically changed
+% for ch = 1:length(children)
+%     children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
+% end
+
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
-% Get size of all the figure children
-ax_tins = zeros(nch,4);
-for ch = 1:nch
-    % Some objects don't have a TightInset
-    if isprop(children(ch), 'TightInset')
-        ax_tins(ch,:) = children(ch).TightInset;
-    else
-        ax_tins(ch,:) = [0 0 0 0];
-    end
-end
-
-ax_pos = getAsMat(children, 'Position');
-ax_siz = ax_pos(:,3:4); % save plot sizes now - they can automagically change
-ax_sub = getSubPlotInd(ax_pos(~cbmap,:)); % subplot-like indices for children (cell array)
-ax_sub = assignCBSubPlotInd(children, ax_sub, cbmap);
-ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
-nrow = max(ax_row);
-
-% Get rows that require padding (columns won't require padding)
-pad_row = []; % list of rows requiring padding
-for row = 1:nrow
-    rowch = find(row==ax_row)';
-    for ch = rowch
-
-        % If the child is Explorable then add the row to the pad list
-        ind = children(ch)==xplr.ax;
-        if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
-            pad_row(length(pad_row)+1,1) = row;
-            break
-        end
-
-    end
-end
-
-% Reposition children
-% TODO: manually positioned colorbars shouldn't always be aligned with the
-% row they belong to - switch to an algorithm that offsets row members
-% equally instead of aligning them.
-ax_pos_new = ax_pos; % initially nothing has moved
-for row = nrow:-1:1 % start from the bottom
-    % Add text/edit padding if this row requires it
-    if ismember(row, pad_row)
-        axpad = txtedt_h + sum(txtedtmarg([2 4]));
-    else
-        axpad = txtedtmarg(2);
-    end
-
-    % Find the axes from which to get the height this row should start at
-    rowch = find(row==ax_row); % children in this row
-    rowcol = unique( cell2mat(ax_sub(rowch,2)) );
-
-    rowt = max(ax_tins(rowch,:),[],1); % the largest TightInsets from this row (we only use the bottom and top)
-    rowy = ax_pos(rowch(1),2) - rowt(2); % lowest y-position of this row
-
-    % Note: here a 10 pixel overlap is allowed when checking if a figure is
-    % below the row
-    allsharecol = cellfun(@(C) any(ismember(C, rowcol)), ax_sub(:,2));
-    allblw = ( sum(ax_pos(:,[2 4]), 2) + ax_tins(:,4) - 10 < rowy );
-    chblw = find( allsharecol.*allblw ); % children below and sharing a column with this row
-
-    if ~isempty(chblw)
-        rowy = max( sum(ax_pos_new(chblw,[2 4]), 2) + ax_tins(chblw,4) ); % new y-position of this row
-    else
-        rowy = pbtn_h - txtedtmarg(2) + 5; % if this is the bottom row place it 5 pixels above the PushButtons
-    end
-
-    % Move all the axes of this row accordingly
-    for ch = rowch'
-        children(ch).Position(2) = rowy + rowt(2) + axpad;
-    end
-
-    % Update the axes positions recorded
-    ax_pos_new = getAsMat(children, 'Position'); % ################## CHNAGE LATER
-    ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
-
-end
-
-% Resize figure window
-fig.OuterPosition(2) = 50; % move to the bottom of the screen
-fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
-
-% Reset the position sizes incase they have magically changed
-for ch = 1:length(children)
-    children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
+fig.Position(4) = fig.Position(4) + pbtn_h + pbtn_blw_marg + txtedtmarg(1);
+children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
+for ch = children'
+    ch.Position(2) = ch.Position(2) + pbtn_h + pbtn_blw_marg + txtedtmarg(1);
 end
 
 % --- Make non-explorable axes children 'unpickable' --- %
@@ -244,61 +276,66 @@ for a = 1:length(xplr.ax)
 end
 
 %% --- Setup UI --- %%
-uispec = cell(1,length(xplr.ax));
+% uispec = cell(1,length(xplr.ax));
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
 
 pbwidth = 150;
-ui.fig.pbtn = gobjects(size(in.Results.pbtnfcn,1),1);
+ui.pbtn = gobjects(size(in.Results.pbtnfcn,1),1);
 for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.fig.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',... % make the button
+    ui.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',... % make the button
                                  'String', in.Results.pbtnfcn{pb,1},...
                                  'Units', 'pixels',...
                                  'Position', [0 0 pbwidth pbtn_h]);
 
-    ui.fig.pbtn(pb).Position = ui.fig.pbtn(pb).Position + [horz + pbwidth*(pb-1) pbtn_blw_marg 0 0];
+    ui.pbtn(pb).Position = ui.pbtn(pb).Position + [horz + pbwidth*(pb-1) pbtn_blw_marg 0 0];
     % ui.fig.pbtn(pb).Units = 'normalized'; % reset units
 end
 
 % Make text and edit objects for each explorable axes
-nax = length(xplr.ax);
-for a = 1:nax
-
-    % Initial text and edit box size and options
-    txtopt = {'Position', [0 0 75 txtedt_h/2]};
-    editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
-
-    if in.Results.DataBoxFromAxes % user setting to use figure axes data
-        axdat = getAxesData(xplr.ax(a), xplr.ln);
-        if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
-            uispec{a} = axdat;
-        else
-            uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
-        end
-    end
-
-    % Make the text/edit pair
-    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), uispec{a}, txtedtmarg, txtopt, editopt);
-
-end
+% nax = length(xplr.ax);
+% for a = 1:nax
+% 
+%     % Initial text and edit box size and options
+%     txtopt = {'Position', [0 0 75 txtedt_h/2]};
+%     editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
+% 
+%     if in.Results.DataBoxFromAxes % user setting to use figure axes data
+%         axdat = getAxesData(xplr.ax(a), xplr.ln);
+%         if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
+%             uispec{a} = axdat;
+%         else
+%             uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
+%         end
+%     end
+% 
+%     % Make the text/edit pair
+%     [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), uispec{a}, txtedtmarg, txtopt, editopt);
+% 
+% end
 
 % Assign user callback functions to push buttons
 for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.fig.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
+    ui.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
 end
 
+% Assign UpdateFcn to data cursor mode object
+recall = struct('Target', [], 'ind', 0, 'make_datatip', false);
+ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, recall};
+
 % Assign ButtonDownFcn to selectable objects in figures
-for ob = 1:length(slct)
-    % Pass structs with selected point information (slct) and updatable ui 
-    % objects (ui). Pass index of current selectable object.
-    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
-end
+% for ob = 1:length(slct)
+%     % Pass structs with selected point information (slct) and updatable ui 
+%     % objects (ui). Pass index of current selectable object.
+%     slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
+% end
 
 %% --- Finalize Figure Properties --- %%
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
+ui.dcm.Enable = 'on';
 
 end
 
@@ -778,5 +815,53 @@ end
 
 % Call the user's function and pass options through
 usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
+
+end
+
+function str = dcmUpdate(dtobj, eobj, ui, slct, slctopt, recall)
+
+% Get index of selected object
+n = [slct.xplrobj] == recall.Target;
+
+if recall.makeDatatip
+    lns = [slct.xplrobj];
+    for ln = lns(~n)
+        dt = ui.dcm.createDatatip(ln);
+
+        % Create a copy of the context menu for the datatip:
+        set(dt,'UIContextMenu',ui.dcm.UIContextMenu);
+        set(dt,'HandleVisibility','off');
+        set(dt,'Host',ln);
+        set(dt,'ViewStyle','datatip');
+
+%         % Set the data-tip orientation to top-right rather than auto
+%         set(dt,'OrientationMode','manual');
+%         set(dt,'Orientation','top-right');
+
+        % Update the datatip marker appearance
+        set(dt, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+                      'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+
+        x = recall.Target.XData(recall.ind);
+        y = recall.Target.YData(recall.ind);
+        if ~isempty(recall.Target.ZData)
+            z = recall.Target.ZData(recall.ind);
+        else
+            z = 1;
+        end
+        dt.update([x,y,1; x,y,-1]);
+    end
+else
+    % Make datatips for linked lines
+    
+    % Remove extra datatips
+    
+end
+
+% Make string of data to display
+str = cell(1,length(slct(n).data));
+for d = 1:length(slct(n).data)
+    str{d} = {'XYZ {\bf\color{DarkGreen}{' num2str(slct(n).data{slct(n).ind},4) '}}'};
+end
 
 end
