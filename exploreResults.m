@@ -321,8 +321,7 @@ for pb = 1:size(in.Results.pbtnfcn,1)
 end
 
 % Assign UpdateFcn to data cursor mode object
-recall = struct('Target', [], 'ind', 0, 'make_datatip', false);
-ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, recall};
+ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
 
 % Assign ButtonDownFcn to selectable objects in figures
 % for ob = 1:length(slct)
@@ -598,6 +597,33 @@ edt.Position = [tpos(1)+dif3/2 tpos(2)-epos(4) epos(3:4)];
 
 end
 
+function [dc] = makeDataCursor(dcm, target, ind, properties)
+    dc = dcm.createDatatip(target);
+    
+    % Create a copy of the context menu for the datatip:
+    set(dc,'UIContextMenu',dcm.UIContextMenu);
+    set(dc,'HandleVisibility','off');
+    set(dc,'Host',target);
+    set(dc,'ViewStyle','datatip');
+    
+%         % Set the data-tip orientation to top-right rather than auto
+%         set(dt,'OrientationMode','manual');
+%         set(dt,'Orientation','top-right');
+
+    % Update the datatip marker appearance
+    set(dt, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+        'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+
+    x = target.XData(ind);
+    y = target.YData(ind);
+    if ~isempty(target.ZData)
+        z = target.ZData(ind);
+    else
+        z = 1;
+    end
+    dc.update([x,y,1; x,y,-1]);
+    
+end
 % --- Utility --- %
 function [] = chkExtent(txt)
 % Checks that the extent of the string in a text object does not exceed the
@@ -818,50 +844,52 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function str = dcmUpdate(dtobj, eobj, ui, slct, slctopt, recall)
+function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, makedatatip)
 
 % Get index of selected object
-n = [slct.xplrobj] == recall.Target;
+s = [slct.xplobj] == eobj.Target;
+ind = pdtobj.Cursor.DataIndex;
 
-if recall.makeDatatip
-    lns = [slct.xplrobj];
-    for ln = lns(~n)
-        dt = ui.dcm.createDatatip(ln);
-
-        % Create a copy of the context menu for the datatip:
-        set(dt,'UIContextMenu',ui.dcm.UIContextMenu);
-        set(dt,'HandleVisibility','off');
-        set(dt,'Host',ln);
-        set(dt,'ViewStyle','datatip');
-
-%         % Set the data-tip orientation to top-right rather than auto
-%         set(dt,'OrientationMode','manual');
-%         set(dt,'Orientation','top-right');
-
-        % Update the datatip marker appearance
-        set(dt, 'MarkerSize',5, 'MarkerFaceColor','none', ...
-                      'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
-
-        x = recall.Target.XData(recall.ind);
-        y = recall.Target.YData(recall.ind);
-        if ~isempty(recall.Target.ZData)
-            z = recall.Target.ZData(recall.ind);
-        else
-            z = 1;
-        end
-        dt.update([x,y,1; x,y,-1]);
-    end
-else
-    % Make datatips for linked lines
+% Make data cursors for linked lines
+if makedatatip && slctopt.SelectionLinkAxes
     
-    % Remove extra datatips
+    % Change the makedatatip argument for the UpdateFcn
+    ui.dcm.UpdateFcn{5} = false;
+
+    % Make datatips
+    cinfo = getCursorInfo(ui.dcm);
+    xlns = [slct.xplobj]; % explorable lines
+    clns = [cinfo.Target]; % cursor lines
+    for ln = xlns(ismember(xlns, clns))
+         inds = cinfo.DataIndex(clns(ismember(clns, ln)));
+         if all(inds ~= ind)
+            makeDataCursor(ui.dcm, ln, ind, []);
+         end
+    end
+
+    % Reset the argument
+    ui.dcm.UpdateFcn{5} = true;
     
 end
 
+% Remove extra datatips
+if makedatatip && false 
+    % NOT YET IMPLIMENTED
+end
+
 % Make string of data to display
-str = cell(1,length(slct(n).data));
-for d = 1:length(slct(n).data)
-    str{d} = {'XYZ {\bf\color{DarkGreen}{' num2str(slct(n).data{slct(n).ind},4) '}}'};
+str = cell(1,length(slct(s).data));
+try % >= 20XXx
+    ui.dcm.Interpreter;
+    for d = 1:length(slct(s).data)
+        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(slct(s).data{d,2}(ind),4) '}}'];
+    end
+catch % <= 20XXx
+    pdtobj.TextColor = [0.3 0.6 0.3];
+    pdtobj.FontWeight = 'bold';
+    for d = 1:length(slct(s).data)
+        str{d} = [slct(s).data{d,1} ' ' num2str(slct(s).data{d,2}(ind),4)];
+    end
 end
 
 end
