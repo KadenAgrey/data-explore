@@ -601,18 +601,18 @@ function [dc] = makeDataCursor(dcm, target, ind, properties)
     dc = dcm.createDatatip(target);
     
     % Create a copy of the context menu for the datatip:
-    set(dc,'UIContextMenu',dcm.UIContextMenu);
-    set(dc,'HandleVisibility','off');
-    set(dc,'Host',target);
-    set(dc,'ViewStyle','datatip');
+%     set(dc,'UIContextMenu',dcm.UIContextMenu);
+%     set(dc,'HandleVisibility','off');
+%     set(dc,'Host',target);
+%     set(dc,'ViewStyle','datatip');
     
 %         % Set the data-tip orientation to top-right rather than auto
-%         set(dt,'OrientationMode','manual');
-%         set(dt,'Orientation','top-right');
+%         set(dc,'OrientationMode','manual');
+%         set(dc,'Orientation','top-right');
 
     % Update the datatip marker appearance
-    set(dt, 'MarkerSize',5, 'MarkerFaceColor','none', ...
-        'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+%     set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+%         'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
 
     x = target.XData(ind);
     y = target.YData(ind);
@@ -622,6 +622,8 @@ function [dc] = makeDataCursor(dcm, target, ind, properties)
         z = 1;
     end
     dc.update([x,y,1; x,y,-1]);
+%     dcm.updateDataCursors
+%     dcm.editUpdateFcn
     
 end
 % --- Utility --- %
@@ -844,14 +846,17 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, makedatatip)
+function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, isnew)
+
+% Update isnew argument
+pdtobj.UpdateFcn{5} = false;
 
 % Get index of selected object
 s = [slct.xplobj] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
 
 % Make data cursors for linked lines
-if makedatatip && slctopt.SelectionLinkAxes
+if isnew && slctopt.SelectionLinkAxes
     
     % Change the makedatatip argument for the UpdateFcn
     ui.dcm.UpdateFcn{5} = false;
@@ -860,9 +865,10 @@ if makedatatip && slctopt.SelectionLinkAxes
     cinfo = getCursorInfo(ui.dcm);
     xlns = [slct.xplobj]; % explorable lines
     clns = [cinfo.Target]; % cursor lines
-    for ln = xlns(ismember(xlns, clns))
-         inds = cinfo.DataIndex(clns(ismember(clns, ln)));
-         if all(inds ~= ind)
+    for ln = xlns(xlns ~= eobj.Target)
+         n = clns==ln;
+         % Are there no tips on ln or are the tips at different indices?
+         if all(~n) || all(cinfo.DataIndex(n) ~= ind)
             makeDataCursor(ui.dcm, ln, ind, []);
          end
     end
@@ -873,7 +879,7 @@ if makedatatip && slctopt.SelectionLinkAxes
 end
 
 % Remove extra datatips
-if makedatatip && false 
+if isnew && false 
     % NOT YET IMPLIMENTED
 end
 
