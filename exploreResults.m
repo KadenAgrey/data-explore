@@ -277,6 +277,7 @@ end
 
 %% --- Setup UI --- %%
 % uispec = cell(1,length(xplr.ax));
+ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
@@ -320,6 +321,22 @@ for pb = 1:size(in.Results.pbtnfcn,1)
     ui.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
 end
 
+% This uses undocumented functionality, see link below if it breaks. We
+% need to diable some listeners so that we can change the button down
+% function of the figure and interject with our own code first. 
+% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
+hManager = uigetmodemanager(fig);
+try
+    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
+catch
+    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
+end
+
+wbdfcn = fig.WindowButtonDownFcn;
+% wbufcn = fig.WindowButtonUpFcn;
+
+fig.WindowButtonDownFcn = {@lnSelectPnt, wbdfcn, ui, slct, slctopt};
+
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
 
@@ -334,7 +351,6 @@ ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
-ui.dcm.Enable = 'on';
 
 end
 
@@ -846,42 +862,53 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, isnew)
+function [] = lnSelectPnt(src, event, figfcn, ui, slct, slctopt)
+% Callback assigned to each selectable object (line, contour, surface
+% etc.). This is interjected before the standard matlab datatip mode
+% callback is executed and allows us to manage the datatips directly.
 
-% Update isnew argument
-pdtobj.UpdateFcn{5} = false;
+%%%%%%%%%%%%%
+figfcn{1}(src, event, figfcn{2:end});
+
+% % Get index of selected object
+% s = [slct.xplobj] == eobj.Target;
+% ind = pdtobj.Cursor.DataIndex;
+% 
+% % Make data cursors for linked lines
+% if isnew && slctopt.SelectionLinkAxes
+%     
+%     % Change the makedatatip argument for the UpdateFcn
+%     ui.dcm.UpdateFcn{5} = false;
+% 
+%     % Make datatips
+%     cinfo = getCursorInfo(ui.dcm);
+%     xlns = [slct.xplobj]; % explorable lines
+%     clns = [cinfo.Target]; % cursor lines
+%     for ln = xlns(xlns ~= eobj.Target)
+%          n = clns==ln;
+%          % Are there no tips on ln or are the tips at different indices?
+%          if all(~n) || all(cinfo.DataIndex(n) ~= ind)
+%             makeDataCursor(ui.dcm, ln, ind, []);
+%          end
+%     end
+% 
+%     % Reset the argument
+%     ui.dcm.UpdateFcn{5} = true;
+%     
+% end
+% 
+% % Remove extra datatips
+% if isnew && false 
+%     % NOT YET IMPLIMENTED
+% end
+
+end
+
+function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, isnew)
 
 % Get index of selected object
 s = [slct.xplobj] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
-
-% Make data cursors for linked lines
-if isnew && slctopt.SelectionLinkAxes
-    
-    % Change the makedatatip argument for the UpdateFcn
-    ui.dcm.UpdateFcn{5} = false;
-
-    % Make datatips
-    cinfo = getCursorInfo(ui.dcm);
-    xlns = [slct.xplobj]; % explorable lines
-    clns = [cinfo.Target]; % cursor lines
-    for ln = xlns(xlns ~= eobj.Target)
-         n = clns==ln;
-         % Are there no tips on ln or are the tips at different indices?
-         if all(~n) || all(cinfo.DataIndex(n) ~= ind)
-            makeDataCursor(ui.dcm, ln, ind, []);
-         end
-    end
-
-    % Reset the argument
-    ui.dcm.UpdateFcn{5} = true;
-    
-end
-
-% Remove extra datatips
-if isnew && false 
-    % NOT YET IMPLIMENTED
-end
 
 % Make string of data to display
 str = cell(1,length(slct(s).data));
