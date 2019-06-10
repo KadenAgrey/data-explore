@@ -614,34 +614,44 @@ edt.Position = [tpos(1)+dif3/2 tpos(2)-epos(4) epos(3:4)];
 end
 
 function [dc] = makeDataCursor(dcm, target, ind, properties)
-    dc = dcm.createDatatip(target);
-    
+ 
+% Get the cursor position in data units
+x = target.XData(ind);
+y = target.YData(ind);
+%     if ~isempty(target.ZData)
+%         z = target.ZData(ind);
+%     else
+%         z = 1;
+%     end
+ 
+% Get cursor position in pixels
+units = get( target.Parent, 'Units' ); % store fig units
+set( target.Parent, 'Units', 'pixels' ); % set to pixels
+[figpnt(1), figpnt(2)] = data2fig(target.Parent, x, y); % get position
+set( target.Parent, 'Units', units ); % % reset units
+ 
+dc = dcm.createDatatip(target, figpnt);
+   
     % Create a copy of the context menu for the datatip:
 %     set(dc,'UIContextMenu',dcm.UIContextMenu);
 %     set(dc,'HandleVisibility','off');
 %     set(dc,'Host',target);
 %     set(dc,'ViewStyle','datatip');
-    
+   
 %         % Set the data-tip orientation to top-right rather than auto
 %         set(dc,'OrientationMode','manual');
 %         set(dc,'Orientation','top-right');
-
+ 
     % Update the datatip marker appearance
 %     set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
 %         'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
-
-    x = target.XData(ind);
-    y = target.YData(ind);
-    if ~isempty(target.ZData)
-        z = target.ZData(ind);
-    else
-        z = 1;
-    end
-    dc.update([x,y,1; x,y,-1]);
+ 
+%     dc.update([x,y,1; x,y,-1]);
 %     dcm.updateDataCursors
 %     dcm.editUpdateFcn
-    
+   
 end
+
 % --- Utility --- %
 function [] = chkExtent(txt)
 % Checks that the extent of the string in a text object does not exceed the
@@ -680,6 +690,27 @@ for c = 1:length(children)
     else
         ax_sub_new(c,:) = ax_sub(c-n,:);
     end
+end
+
+end
+
+function [xf, yf] = data2fig(ax, x, y)
+% Converts data coordinates (<x> and <y>) on an axes to equivalent
+% coordinates in the figure with the same units as <ax>.
+ 
+pos = ax.Position;
+ 
+xf = pos(1) + pos(3)*(x - ax.XLim(1))/diff(ax.XLim);
+yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
+ 
+end
+
+function [] = removeCursors(src, event, dcm, dc)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% cursors
+
+for c = dc(:)'
+    dcm.removeDataCursor(c)
 end
 
 end
@@ -867,40 +898,64 @@ function [] = lnSelectPnt(src, event, figfcn, ui, slct, slctopt)
 % etc.). This is interjected before the standard matlab datatip mode
 % callback is executed and allows us to manage the datatips directly.
 
-%%%%%%%%%%%%%
+% Run the original callback
 figfcn{1}(src, event, figfcn{2:end});
 
-% % Get index of selected object
-% s = [slct.xplobj] == eobj.Target;
-% ind = pdtobj.Cursor.DataIndex;
-% 
-% % Make data cursors for linked lines
-% if isnew && slctopt.SelectionLinkAxes
-%     
-%     % Change the makedatatip argument for the UpdateFcn
-%     ui.dcm.UpdateFcn{5} = false;
-% 
-%     % Make datatips
-%     cinfo = getCursorInfo(ui.dcm);
-%     xlns = [slct.xplobj]; % explorable lines
-%     clns = [cinfo.Target]; % cursor lines
-%     for ln = xlns(xlns ~= eobj.Target)
-%          n = clns==ln;
-%          % Are there no tips on ln or are the tips at different indices?
-%          if all(~n) || all(cinfo.DataIndex(n) ~= ind)
-%             makeDataCursor(ui.dcm, ln, ind, []);
-%          end
-%     end
-% 
-%     % Reset the argument
-%     ui.dcm.UpdateFcn{5} = true;
-%     
-% end
-% 
-% % Remove extra datatips
-% if isnew && false 
-%     % NOT YET IMPLIMENTED
-% end
+% If an explorable object was hit we need to continue with "normal" or 
+% "extend" if the modifier is "shift" or "alt" as this means a new data 
+% cursor was created.
+% Note: undocumented event property "HitObject"
+isxplhit = any(ismember([slct.xplobj], event.HitObject));
+% Copied from %matlabroot%/toolbox/matlab/graphics/
+%               datacursormanager.m@localWindowButtonDownFcn()
+mod = get(src,'CurrentModifier');
+isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
+if ~isxplhit || ~( strcmp(src.SelectionType,'normal') ...
+        || (isAddRequest && strcmp(src.SelectionType,'extend')) )
+    return;
+end
+
+% Link Axes
+if slctopt.SelectionLinkAxes
+    % Store the current cursor to reset after
+    curcur = ui.dcm.CurrentCursor;
+    dt = findall(src, 'Type', 'hggroup');
+
+    % Get index of selected object and point
+    s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
+    ind = ui.dcm.CurrentCursor.DataIndex;
+
+    % Make Linked data tips
+    cinfo = getCursorInfo(ui.dcm);
+    xlns = [slct.xplobj]; % explorable lines
+    clns = [cinfo.Target]; % cursor lines
+    for ln = xlns(~s)
+        n = clns==ln;
+        % Are there no tips on ln or are the tips at different indices?
+        if all(~n) || all([cinfo(n).DataIndex] ~= ind)
+            dt(length(dt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
+        end
+    end
+
+    % Add delete functions to linked tips
+    for t = 1:length(dt)
+        rt = 1:length(dt) ~= t; % indices of other tips to remove
+%         addListener(curcur(t), 'ObjectBeingDestroyed', @(obj, evd) removeCursors(ui.dcm, curcur(rt)))
+        dt(t).DeleteFcn = {@removeCursors, ui.dcm, [dt(rt).Cursor]};
+    end
+
+    % Add move listeners to linked tips
+    
+
+    % Reset current cursor
+    ui.dcm.CurrentCursor = curcur(1);
+
+end
+
+% Remove extra datatips
+if false 
+    % NOT YET IMPLIMENTED
+end
 
 end
 
