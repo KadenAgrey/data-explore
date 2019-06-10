@@ -705,7 +705,7 @@ yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
  
 end
 
-function [] = removeCursors(src, event, dcm, dc)
+function [] = rmCursors(src, event, dcm, dc)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors
 
@@ -715,6 +715,28 @@ end
 
 end
 
+function [] = rmCursorsNoLink(src, event, dcm, dt)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% cursors after diabling the delete function
+
+for t = dt(:)'
+    t.DeleteFcn = [];
+    dcm.removeDataCursor(t.Cursor)
+end
+
+end
+
+function [] = moveLinkedTips(tipstate, tips)
+% Checks for moved tips compared to a previous state.
+
+same = false(length(tips));
+for t = 1:length(tips)
+    if tips(t).DataSource
+        
+    end
+end
+
+end
 % --- Callbacks --- %
 function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
 % Assigned as ButtonDownFcn to a line to select nearest point when line is
@@ -893,13 +915,13 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function [] = lnSelectPnt(src, event, figfcn, ui, slct, slctopt)
+function [] = lnSelectPnt(fig, event, figfcn, ui, slct, slctopt, tipstate)
 % Callback assigned to each selectable object (line, contour, surface
 % etc.). This is interjected before the standard matlab datatip mode
 % callback is executed and allows us to manage the datatips directly.
 
 % Run the original callback
-figfcn{1}(src, event, figfcn{2:end});
+figfcn{1}(fig, event, figfcn{2:end});
 
 % If an explorable object was hit we need to continue with "normal" or 
 % "extend" if the modifier is "shift" or "alt" as this means a new data 
@@ -908,10 +930,10 @@ figfcn{1}(src, event, figfcn{2:end});
 isxplhit = any(ismember([slct.xplobj], event.HitObject));
 % Copied from %matlabroot%/toolbox/matlab/graphics/
 %               datacursormanager.m@localWindowButtonDownFcn()
-mod = get(src,'CurrentModifier');
+mod = get(fig,'CurrentModifier');
 isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
-if ~isxplhit || ~( strcmp(src.SelectionType,'normal') ...
-        || (isAddRequest && strcmp(src.SelectionType,'extend')) )
+if ~isxplhit || ~( strcmp(fig.SelectionType,'normal') ...
+        || (isAddRequest && strcmp(fig.SelectionType,'extend')) )
     return;
 end
 
@@ -919,7 +941,7 @@ end
 if slctopt.SelectionLinkAxes
     % Store the current cursor to reset after
     curcur = ui.dcm.CurrentCursor;
-    dt = findall(src, 'Type', 'hggroup');
+    dt = findall(fig, 'Type', 'hggroup');
 
     % Get index of selected object and point
     s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
@@ -937,15 +959,20 @@ if slctopt.SelectionLinkAxes
         end
     end
 
-    % Add delete functions to linked tips
+    % Add callbacks so that all linked tips are deleted together and moved
+    % together etc.
     for t = 1:length(dt)
         rt = 1:length(dt) ~= t; % indices of other tips to remove
-%         addListener(curcur(t), 'ObjectBeingDestroyed', @(obj, evd) removeCursors(ui.dcm, curcur(rt)))
-        dt(t).DeleteFcn = {@removeCursors, ui.dcm, [dt(rt).Cursor]};
+        % Add delete functions to linked tips
+        dt(t).DeleteFcn = {@rmCursors, ui.dcm, [dt(rt).Cursor]};
+        % Add property listener to move tips together - listeners are not
+        % implimented for Datatips yet.
+%         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
+%         plistenS = addlistener(dt(t),'DataSource','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
     end
 
-    % Add move listeners to linked tips
-    
+    % Ensure datatips move together
+    moveLinkedTips(tipstate, dt);
 
     % Reset current cursor
     ui.dcm.CurrentCursor = curcur(1);
@@ -956,6 +983,9 @@ end
 if false 
     % NOT YET IMPLIMENTED
 end
+
+% Update callback args
+fig.WindowButtonDownFcn{5} = ui.dcm.getCursorInfo();
 
 end
 
