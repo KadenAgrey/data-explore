@@ -720,7 +720,7 @@ end
 
 function [] = rmCursorsNoLink(~, ~, dcm, dt)
 % Invokes the datacursormanager.removeCursor function to remove an array of
-% cursors after diabling the delete function
+% cursors after disabling the delete function
 
 set(dt, 'DeleteFcn', []);
 rmCursors([], [], dcm, [dt.Cursor])
