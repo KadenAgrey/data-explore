@@ -321,21 +321,10 @@ for pb = 1:size(in.Results.pbtnfcn,1)
     ui.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
 end
 
-% This uses undocumented functionality, see link below if it breaks. We
-% need to diable some listeners so that we can change the button down
-% function of the figure and interject with our own code first. 
-% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
-hManager = uigetmodemanager(fig);
-try
-    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
-catch
-    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
-end
-
-wbdfcn = fig.WindowButtonDownFcn;
-% wbufcn = fig.WindowButtonUpFcn;
-
-fig.WindowButtonDownFcn = {@lnSelectPnt, wbdfcn, {}, ui, slct, slctopt};
+% Assign button down callback for figure window
+disableFigFcnListener(fig)
+wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
+fig.WindowButtonDownFcn = wndwfcn;
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
@@ -694,6 +683,20 @@ end
 
 end
 
+function [] = disableFigFcnListener(fig)
+% This uses undocumented functionality, see link below if it breaks. We
+% need to diable some listeners so that we can change the button down
+% function of the figure and interject with our own code first. 
+% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
+hManager = uigetmodemanager(fig);
+try
+    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
+catch
+    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
+end
+
+end
+
 function [xf, yf] = data2fig(ax, x, y)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
@@ -724,15 +727,18 @@ rmCursors([], [], dcm, [dt.Cursor])
 
 end
 
-function [linkedtips] = rmMovedLinkedTips(linkedtips, curtip)
+function [linkedtips] = rmMovedLinkedTips(dcm, linkedtips, curtip)
 % Checks if current tip was moved and removes its linked tips if so
 
 cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
 % Is DataIndex equal for the tips?
-if any(cind) && ~isequal(linkedtips{cind}.DataIndex)
-    rtind = linkedtips{cind} ~= curtip;
-    rmCursorsNoLink(src, event, dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
-    linkedtips = linkedtips(~cind); % update linkedtips
+if any(cind)
+    DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
+    if ~all( DataIndices == DataIndices(1) )
+        rtind = linkedtips{cind} ~= curtip;
+        rmCursorsNoLink([], [], dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
+        linkedtips = linkedtips(~cind); % update linkedtips
+    end
 end
 
 end
@@ -960,7 +966,7 @@ if slctopt.SelectionLinkAxes
             newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
         end
     end
-    alldt = [alldt newdt];
+    alldt = [alldt; newdt'];
 
     % Add callbacks so that all linked tips are deleted together and moved
     % together etc.
@@ -975,10 +981,10 @@ if slctopt.SelectionLinkAxes
     end
 
     % Ensure datatips move together
-    lnkdt = rmMovedLinkedTips(lnkdt);
+    curdt = findobj(alldt,'Cursor',curcur);
+    lnkdt = rmMovedLinkedTips(ui.dcm, lnkdt, curdt);
 
     % Update lnktips
-    curdt = findobj(alldt,'Cursor',curcur);
     lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
 
     % Reset current cursor
@@ -987,12 +993,13 @@ if slctopt.SelectionLinkAxes
 end
 
 % Remove extra datatips
-if false 
+if false
     % NOT YET IMPLIMENTED
 end
 
 % Update callback args
-fig.WindowButtonDownFcn{2} = lnkdt;
+disableFigFcnListener(fig)
+fig.WindowButtonDownFcn{3} = lnkdt;
 
 end
 
