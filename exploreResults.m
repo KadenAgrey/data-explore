@@ -335,7 +335,7 @@ end
 wbdfcn = fig.WindowButtonDownFcn;
 % wbufcn = fig.WindowButtonUpFcn;
 
-fig.WindowButtonDownFcn = {@lnSelectPnt, wbdfcn, ui, slct, slctopt};
+fig.WindowButtonDownFcn = {@lnSelectPnt, wbdfcn, {}, ui, slct, slctopt};
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
@@ -705,7 +705,7 @@ yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
  
 end
 
-function [] = rmCursors(src, event, dcm, dc)
+function [] = rmCursors(~, ~, dcm, dc)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors
 
@@ -715,28 +715,28 @@ end
 
 end
 
-function [] = rmCursorsNoLink(src, event, dcm, dt)
+function [] = rmCursorsNoLink(~, ~, dcm, dt)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors after diabling the delete function
 
-for t = dt(:)'
-    t.DeleteFcn = [];
-    dcm.removeDataCursor(t.Cursor)
+set(dt, 'DeleteFcn', []);
+rmCursors([], [], dcm, [dt.Cursor])
+
+end
+
+function [linkedtips] = rmMovedLinkedTips(linkedtips, curtip)
+% Checks if current tip was moved and removes its linked tips if so
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+% Is DataIndex equal for the tips?
+if any(cind) && ~isequal(linkedtips{cind}.DataIndex)
+    rtind = linkedtips{cind} ~= curtip;
+    rmCursorsNoLink(src, event, dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
+    linkedtips = linkedtips(~cind); % update linkedtips
 end
 
 end
 
-function [] = moveLinkedTips(tipstate, tips)
-% Checks for moved tips compared to a previous state.
-
-same = false(length(tips));
-for t = 1:length(tips)
-    if tips(t).DataSource
-        
-    end
-end
-
-end
 % --- Callbacks --- %
 function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
 % Assigned as ButtonDownFcn to a line to select nearest point when line is
@@ -915,7 +915,7 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function [] = lnSelectPnt(fig, event, figfcn, ui, slct, slctopt, tipstate)
+function [] = lnSelectPnt(fig, event, figfcn, lnkdt, ui, slct, slctopt)
 % Callback assigned to each selectable object (line, contour, surface
 % etc.). This is interjected before the standard matlab datatip mode
 % callback is executed and allows us to manage the datatips directly.
@@ -941,7 +941,7 @@ end
 if slctopt.SelectionLinkAxes
     % Store the current cursor to reset after
     curcur = ui.dcm.CurrentCursor;
-    dt = findall(fig, 'Type', 'hggroup');
+    alldt = findall(fig, 'Type', 'hggroup');
 
     % Get index of selected object and point
     s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
@@ -951,20 +951,23 @@ if slctopt.SelectionLinkAxes
     cinfo = getCursorInfo(ui.dcm);
     xlns = [slct.xplobj]; % explorable lines
     clns = [cinfo.Target]; % cursor lines
+    % This tip will be overwritten, I just want to initialize with the correct data type
+    newdt = gobjects(0); %alldt(1); 
     for ln = xlns(~s)
         n = clns==ln;
         % Are there no tips on ln or are the tips at different indices?
         if all(~n) || all([cinfo(n).DataIndex] ~= ind)
-            dt(length(dt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
         end
     end
+    alldt = [alldt newdt];
 
     % Add callbacks so that all linked tips are deleted together and moved
     % together etc.
-    for t = 1:length(dt)
-        rt = 1:length(dt) ~= t; % indices of other tips to remove
+    for t = 1:length(alldt)
+        rt = 1:length(alldt) ~= t; % indices of other tips to remove
         % Add delete functions to linked tips
-        dt(t).DeleteFcn = {@rmCursors, ui.dcm, [dt(rt).Cursor]};
+        alldt(t).DeleteFcn = {@rmCursors, ui.dcm, [alldt(rt).Cursor]};
         % Add property listener to move tips together - listeners are not
         % implimented for Datatips yet.
 %         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
@@ -972,10 +975,14 @@ if slctopt.SelectionLinkAxes
     end
 
     % Ensure datatips move together
-    moveLinkedTips(tipstate, dt);
+    lnkdt = rmMovedLinkedTips(lnkdt);
+
+    % Update lnktips
+    curdt = findobj(alldt,'Cursor',curcur);
+    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
 
     % Reset current cursor
-    ui.dcm.CurrentCursor = curcur(1);
+    ui.dcm.CurrentCursor = curcur;
 
 end
 
@@ -985,7 +992,7 @@ if false
 end
 
 % Update callback args
-fig.WindowButtonDownFcn{5} = ui.dcm.getCursorInfo();
+fig.WindowButtonDownFcn{2} = lnkdt;
 
 end
 
