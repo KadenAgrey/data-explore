@@ -323,11 +323,18 @@ end
 
 % Assign button down callback for figure window
 disableFigFcnListener(fig)
+% Set button down function
 wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
 fig.WindowButtonDownFcn = wndwfcn;
+% Set button up function
+wndwfcn = {@moveLinkedTips, fig.WindowButtonUpFcn, ui.dcm, {}};
+fig.WindowButtonUpFcn = wndwfcn;
+% % Set key press function
+% wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
+% fig.WindowKeypressFcn = wndwfcn;
 
 % Assign UpdateFcn to data cursor mode object
-ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct, slctopt, true};
+ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
 
 % Assign ButtonDownFcn to selectable objects in figures
 % for ob = 1:length(slct)
@@ -710,7 +717,12 @@ end
 
 function [] = rmCursors(~, ~, dcm, dc)
 % Invokes the datacursormanager.removeCursor function to remove an array of
-% cursors
+% cursors.
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
 
 for c = dc(:)'
     dcm.removeDataCursor(c)
@@ -739,6 +751,48 @@ if any(cind)
         rmCursorsNoLink([], [], dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
         linkedtips = linkedtips(~cind); % update linkedtips
     end
+end
+
+end
+
+function mvCursors(~,~,dcm, dc, ind)
+
+end
+
+function mvLinkedTips(dcm, linkedtips, curtip)
+% Moves all tips linked to the current cursor to the same index on their
+% source.
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Is DataIndex equal for the tips?
+    DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
+    if ~all( DataIndices == DataIndices(1) )
+        rtind = linkedtips{cind} ~= curtip;
+        mvCursors([], [], dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
+        linkedtips = linkedtips(~cind); % update linkedtips
+    end
+    
+end
+
+end
+
+function mvSrcLinkedTips(dcm, linkedtips, curtip, xplobj)
+% If the source of the current cursor has changed then its linked tips are 
+% moved to the remaining sources.
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Are all sources covered?
+    Sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor]);
+    if ~all(ismember(Sources, xplobj))
+        cursrc = curtip.Cursor.DataSource;
+        
+        
+    end
+
 end
 
 end
@@ -947,7 +1001,7 @@ end
 if slctopt.SelectionLinkAxes
     % Store the current cursor to reset after
     curcur = ui.dcm.CurrentCursor;
-    alldt = findall(fig, 'Type', 'hggroup');
+    alldt = findall(fig.Children, 'Type', 'hggroup');
 
     % Get index of selected object and point
     s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
@@ -958,7 +1012,7 @@ if slctopt.SelectionLinkAxes
     xlns = [slct.xplobj]; % explorable lines
     clns = [cinfo.Target]; % cursor lines
     % This tip will be overwritten, I just want to initialize with the correct data type
-    newdt = gobjects(0); %alldt(1); 
+    newdt = gobjects(0);
     for ln = xlns(~s)
         n = clns==ln;
         % Are there no tips on ln or are the tips at different indices?
@@ -1003,7 +1057,34 @@ fig.WindowButtonDownFcn{3} = lnkdt;
 
 end
 
-function str = dcmUpdate(pdtobj, eobj, ui, slct, slctopt, isnew)
+function [] = moveLinkedTips(src, event, fcn, dcm, lnkdt)
+% Calls mvLinkedTips with appropriate arguments based on key input
+
+% Run the original callback
+fcn{1}(src, event, fcn{2:end});
+
+% If an explorable object was hit we need to continue with "normal" or 
+% "extend" if the modifier is "shift" or "alt" as this means a new data 
+% cursor was created.
+% Note: undocumented event property "HitObject"
+isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
+% Copied from %matlabroot%/toolbox/matlab/graphics/
+%               datacursormanager.m@localWindowButtonDownFcn()
+% mod = get(src,'CurrentModifier');
+% isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
+if ~isTipHit || ~strcmp(src.SelectionType,'normal') %|| (isAddRequest && strcmp(src.SelectionType,'extend'))
+    return;
+end
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Ensure linked tips move with current tip
+
+
+end
+
+function str = dcmUpdate(pdtobj, eobj, ui, slct)
 
 % Get index of selected object
 s = [slct.xplobj] == eobj.Target;
