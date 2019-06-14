@@ -1025,8 +1025,10 @@ curcur = ui.dcm.CurrentCursor;
 alldt = findall(fig.Children, 'Type', 'hggroup');
 
 % Determine if a new cursor was added
-if ~isAddRequest && length(alldt) == 1
-    isAddRequest = true;
+if ~isAddRequest && slctopt.SelectionLinkAxes
+    if numel(alldt) < numel([slct.xplobj]) || ( numel([lnkdt{:}]) < numel(alldt) )
+        isAddRequest = true;
+    end
 end
 
 % Link Axes
@@ -1050,21 +1052,21 @@ if slctopt.SelectionLinkAxes && isAddRequest
     end
     alldt = [alldt; newdt'];
 
+    % Update lnktips
+    curdt = findobj(alldt,'Cursor',curcur);
+    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
+
     % Add callbacks so that all linked tips are deleted together and moved
     % together etc.
-    for t = 1:length(alldt)
-        rt = 1:length(alldt) ~= t; % indices of other tips to remove
+    for t = 1:length(lnkdt{end})
+        rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
         % Add delete functions to linked tips
-        alldt(t).DeleteFcn = {@rmCursors, ui.dcm, [alldt(rt).Cursor]};
+        lnkdt{end}(t).DeleteFcn = {@rmCursors, ui.dcm, [lnkdt{end}(rt).Cursor]};
         % Add property listener to move tips together - listeners are not
         % implimented for Datatips yet.
 %         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
 %         plistenS = addlistener(dt(t),'DataSource','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
     end
-
-    % Update lnktips
-    curdt = findobj(alldt,'Cursor',curcur);
-    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
 
     % Reset current cursor
     ui.dcm.CurrentCursor = curcur;
