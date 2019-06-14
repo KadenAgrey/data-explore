@@ -327,11 +327,11 @@ disableFigFcnListener(fig)
 wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
 fig.WindowButtonDownFcn = wndwfcn;
 % Set button up function
-wndwfcn = {@moveLinkedTips, fig.WindowButtonUpFcn, ui.dcm, {}};
+wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, {}};
 fig.WindowButtonUpFcn = wndwfcn;
-% % Set key press function
-% wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
-% fig.WindowKeypressFcn = wndwfcn;
+% Set key press function
+wndwfcn = {@mvLinkedTipsKeyPress, fig.KeyPressFcn, ui.dcm, {}};
+fig.KeyPressFcn = wndwfcn;
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
@@ -755,11 +755,35 @@ end
 
 end
 
-function mvCursors(~,~,dcm, dc, ind)
+function mvCursors(~,~, dc, curcur)
+% Invokes the datacursor.moveTo function to move an array of cursors to the
+% same index on their sources as curcur
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+
+ind = curcur.DataIndex;
+for c = dc(:)'
+    x = c.DataSource.XData(ind);
+    y = c.DataSource.YData(ind);
+    if ~isempty(c.DataSource.ZData)
+        z = c.DataSource.ZData(ind);
+    end
+
+    units = c.DataSource.Parent.Units;
+    c.DataSource.Parent.Units = 'pixels';
+
+    [fx, fy] = data2fig(c.DataSource.Parent, x, y);
+    c.moveTo([fx, fy]);
+
+    c.DataSource.Parent.Units = units;
+end
 
 end
 
-function mvLinkedTips(dcm, linkedtips, curtip)
+function mvLinkedTips(linkedtips, curtip)
 % Moves all tips linked to the current cursor to the same index on their
 % source.
 
@@ -770,15 +794,14 @@ if any(cind)
     DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
     if ~all( DataIndices == DataIndices(1) )
         rtind = linkedtips{cind} ~= curtip;
-        mvCursors([], [], dcm, linkedtips{cind}(rtind)); % remove tips linked to curtip
-        linkedtips = linkedtips(~cind); % update linkedtips
+        mvCursors([], [], [linkedtips{cind}(rtind).Cursor], curtip.Cursor); % move tips linked to curtip
     end
-    
-end
 
 end
 
-function mvSrcLinkedTips(dcm, linkedtips, curtip, xplobj)
+end
+
+function mvSrcLinkedTips(linkedtips, curtip, xplobj)
 % If the source of the current cursor has changed then its linked tips are 
 % moved to the remaining sources.
 
@@ -997,12 +1020,17 @@ if ~isxplhit || ~( strcmp(fig.SelectionType,'normal') ...
     return;
 end
 
-% Link Axes
-if slctopt.SelectionLinkAxes
-    % Store the current cursor to reset after
-    curcur = ui.dcm.CurrentCursor;
-    alldt = findall(fig.Children, 'Type', 'hggroup');
+% Store the current cursor to reset after
+curcur = ui.dcm.CurrentCursor;
+alldt = findall(fig.Children, 'Type', 'hggroup');
 
+% Determine if a new cursor was added
+if ~isAddRequest && length(alldt) == 1
+    isAddRequest = true;
+end
+
+% Link Axes
+if slctopt.SelectionLinkAxes && isAddRequest
     % Get index of selected object and point
     s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
     ind = ui.dcm.CurrentCursor.DataIndex;
@@ -1034,15 +1062,25 @@ if slctopt.SelectionLinkAxes
 %         plistenS = addlistener(dt(t),'DataSource','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
     end
 
-    % Ensure datatips move together
-    curdt = findobj(alldt,'Cursor',curcur);
-    lnkdt = rmMovedLinkedTips(ui.dcm, lnkdt, curdt);
-
     % Update lnktips
+    curdt = findobj(alldt,'Cursor',curcur);
     lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
 
     % Reset current cursor
     ui.dcm.CurrentCursor = curcur;
+
+    % Update callback args
+    disableFigFcnListener(fig)
+    fig.WindowButtonDownFcn{3} = lnkdt;
+    fig.WindowButtonUpFcn{4} = lnkdt;
+    fig.KeyPressFcn{4} = lnkdt;
+
+elseif slctopt.SelectionLinkAxes
+    % Ensure datatips move together
+    curdt = findobj(alldt,'Cursor',curcur);
+    mvSrcLinkedTips(lnkdt, curdt, [slct.xplobj])
+    mvLinkedTips(lnkdt, curdt)
+%     lnkdt = rmMovedLinkedTips(ui.dcm, lnkdt, curdt);
 
 end
 
@@ -1051,28 +1089,15 @@ if false
     % NOT YET IMPLIMENTED
 end
 
-% Update callback args
-disableFigFcnListener(fig)
-fig.WindowButtonDownFcn{3} = lnkdt;
-
 end
 
-function [] = moveLinkedTips(src, event, fcn, dcm, lnkdt)
-% Calls mvLinkedTips with appropriate arguments based on key input
+function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
+% Callback to call mvLinkedTips with appropriate arguments.
 
-% Run the original callback
-fcn{1}(src, event, fcn{2:end});
-
-% If an explorable object was hit we need to continue with "normal" or 
-% "extend" if the modifier is "shift" or "alt" as this means a new data 
-% cursor was created.
+% If a tip was hit and selection type is normal continue.
 % Note: undocumented event property "HitObject"
-isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
-% Copied from %matlabroot%/toolbox/matlab/graphics/
-%               datacursormanager.m@localWindowButtonDownFcn()
-% mod = get(src,'CurrentModifier');
-% isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
-if ~isTipHit || ~strcmp(src.SelectionType,'normal') %|| (isAddRequest && strcmp(src.SelectionType,'extend'))
+% isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
+if ~strcmp(src.SelectionType,'normal')
     return;
 end
 
@@ -1080,7 +1105,34 @@ end
 curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
 
 % Ensure linked tips move with current tip
+mvLinkedTips(lnkdt, curdt)
 
+% Run the original callback
+fcn{1}(src, event, fcn{2:end});
+
+end
+
+function [] = mvLinkedTipsKeyPress(src, event, fcn, dcm, lnkdt)
+% Callback to call mvLinkedTips with appropriate arguments.
+
+% Run the original callback
+fcn{1}(src, event, fcn{2:end});
+
+% Exit early if invalid event data
+if ~isobject(event) || ~isvalid(event)
+    return;
+end
+
+% Do nothing if an arrow key wasn't pressed.
+if ~strcmp(event.Key, {'leftarrow','rightarrow','uparrow','downarrow'})
+    return;
+end
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Ensure linked tips move with current tip
+mvLinkedTips(lnkdt, curdt)
 
 end
 
