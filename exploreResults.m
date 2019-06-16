@@ -513,6 +513,14 @@ end
 
 end
 
+function [lnkdt] = getLinkedTips(fig)
+% Gets linked tips cell array from fig window button down function
+% arguments.
+
+lnkdt = fig.WindowButtonDownFcn{3};
+
+end
+
 % --- Makers --- %
 function [txt, edt] = makeValueDispBar(ax, tedat, temarg, varargin)
 % Makes a bar of labeled edit fields under the given axes
@@ -820,6 +828,15 @@ end
 
 end
 
+function [] = updateLinkedTips(fig, lnkdt)
+
+disableFigFcnListener(fig)
+fig.WindowButtonDownFcn{3} = lnkdt;
+fig.WindowButtonUpFcn{4} = lnkdt;
+fig.KeyPressFcn{4} = lnkdt;
+
+end
+
 % --- Callbacks --- %
 function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
 % Assigned as ButtonDownFcn to a line to select nearest point when line is
@@ -1061,7 +1078,7 @@ if slctopt.SelectionLinkAxes && isAddRequest
     for t = 1:length(lnkdt{end})
         rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
         % Add delete functions to linked tips
-        lnkdt{end}(t).DeleteFcn = {@rmCursors, ui.dcm, [lnkdt{end}(rt).Cursor]};
+        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, ui.dcm, lnkdt{end}(rt), fig};
         % Add property listener to move tips together - listeners are not
         % implimented for Datatips yet.
 %         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
@@ -1072,10 +1089,7 @@ if slctopt.SelectionLinkAxes && isAddRequest
     ui.dcm.CurrentCursor = curcur;
 
     % Update callback args
-    disableFigFcnListener(fig)
-    fig.WindowButtonDownFcn{3} = lnkdt;
-    fig.WindowButtonUpFcn{4} = lnkdt;
-    fig.KeyPressFcn{4} = lnkdt;
+    updateLinkedTips(fig, lnkdt);
 
 elseif slctopt.SelectionLinkAxes
     % Ensure datatips move together
@@ -1090,6 +1104,21 @@ end
 if false
     % NOT YET IMPLIMENTED
 end
+
+end
+
+function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
+% Delete function callback when cursors are linked. Removed linked tips and
+% updates lnkdt callback argument for fig button down, button up, and key 
+% press functions.
+
+    rmCursorsNoLink([], [], dcm, dt)
+
+    lnkdt = getLinkedTips(fig);
+    cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
+    lnkdt = lnkdt(~cind);
+
+    updateLinkedTips(fig, lnkdt)
 
 end
 
