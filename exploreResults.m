@@ -321,6 +321,9 @@ for pb = 1:size(in.Results.pbtnfcn,1)
     ui.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
 end
 
+% Assign listener to dcm 'Enable' property
+% plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, slct, slctopt, {}});
+
 % Assign button down callback for figure window
 disableFigFcnListener(fig)
 % Set button down function
@@ -344,6 +347,8 @@ ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
 % end
 
 %% --- Finalize Figure Properties --- %%
+% ui.dcm.Enable = 'on';
+
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
@@ -521,7 +526,432 @@ lnkdt = fig.WindowButtonDownFcn{3};
 
 end
 
+% --- Setters --- %
+function [] = setTipCallbacks(src, event, fig, ui, slct, slctopt, lnkdt)
+% Assign button down callbacks for figure window
+disableFigFcnListener(fig)
+
+% Set button down function
+wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, lnkdt, ui, slct, slctopt};
+fig.WindowButtonDownFcn = wndwfcn;
+% Set button up function
+wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, lnkdt};
+fig.WindowButtonUpFcn = wndwfcn;
+% Set key press function
+wndwfcn = {@mvLinkedTipsKeyPress, fig.KeyPressFcn, ui.dcm, lnkdt};
+fig.KeyPressFcn = wndwfcn;
+
+end
+
 % --- Makers --- %
+function [dc] = makeDataCursor(dcm, target, ind, properties)
+ 
+% Get the cursor position in data units
+x = target.XData(ind);
+y = target.YData(ind);
+%     if ~isempty(target.ZData)
+%         z = target.ZData(ind);
+%     else
+%         z = 1;
+%     end
+ 
+% Get cursor position in pixels
+units = get( target.Parent, 'Units' ); % store fig units
+set( target.Parent, 'Units', 'pixels' ); % set to pixels
+[figpnt(1), figpnt(2)] = data2fig(target.Parent, x, y); % get position
+set( target.Parent, 'Units', units ); % % reset units
+ 
+dc = dcm.createDatatip(target, figpnt);
+   
+    % Create a copy of the context menu for the datatip:
+%     set(dc,'UIContextMenu',dcm.UIContextMenu);
+%     set(dc,'HandleVisibility','off');
+%     set(dc,'Host',target);
+%     set(dc,'ViewStyle','datatip');
+   
+%         % Set the data-tip orientation to top-right rather than auto
+%         set(dc,'OrientationMode','manual');
+%         set(dc,'Orientation','top-right');
+ 
+    % Update the datatip marker appearance
+%     set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+%         'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+ 
+%     dc.update([x,y,1; x,y,-1]);
+%     dcm.updateDataCursors
+%     dcm.editUpdateFcn
+   
+end
+
+% --- Utility --- %
+function [] = chkExtent(txt)
+% Checks that the extent of the string in a text object does not exceed the
+% size. Because the 'Extent' property doesn't consider automatic string
+% wrap this function doesn't either.
+
+unit = txt.Units;
+txt.Units = 'pixels';
+
+% Width first - get size difference
+dif3 = txt.Extent(3) - txt.Position(3) + 3; % Include some padding
+% Adjust box size accordingly
+if dif3 > 0
+    txt.Position(3) = txt.Position(3) + dif3;
+end
+% Set the height likewise
+dif4 = txt.Extent(4) - txt.Position(4) + 3;
+if dif4 > 0
+    txt.Position(4) = txt.Position(4) + dif4;
+end
+
+txt.Units = unit; % reset units
+
+end
+
+function [] = disableFigFcnListener(fig)
+% This uses undocumented functionality, see link below if it breaks. We
+% need to diable some listeners so that we can change the button down
+% function of the figure and interject with our own code first. 
+% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
+hManager = uigetmodemanager(fig);
+try
+    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
+catch
+    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
+end
+
+end
+
+function [xf, yf] = data2fig(ax, x, y)
+% Converts data coordinates (<x> and <y>) on an axes to equivalent
+% coordinates in the figure with the same units as <ax>.
+ 
+pos = ax.Position;
+ 
+xf = pos(1) + pos(3)*(x - ax.XLim(1))/diff(ax.XLim);
+yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
+ 
+end
+
+function [] = rmCursors(~, ~, dcm, dc)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% cursors.
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+
+for c = dc(:)'
+    dcm.removeDataCursor(c)
+end
+
+end
+
+function [] = rmCursorsNoLink(~, ~, dcm, dt)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% cursors after disabling the delete function
+
+set(dt, 'DeleteFcn', []);
+rmCursors([], [], dcm, [dt.Cursor])
+
+end
+
+function [] = mvCursors(~,~, dc, curcur)
+% Invokes the datacursor.moveTo function to move an array of cursors to the
+% same index on their sources as curcur
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+
+ind = curcur.DataIndex;
+for c = dc(:)'
+    x = c.DataSource.XData(ind);
+    y = c.DataSource.YData(ind);
+    if ~isempty(c.DataSource.ZData)
+        z = c.DataSource.ZData(ind);
+    end
+
+    units = c.DataSource.Parent.Units;
+    c.DataSource.Parent.Units = 'pixels';
+
+    [fx, fy] = data2fig(c.DataSource.Parent, x, y);
+    c.moveTo([fx, fy]);
+
+    c.DataSource.Parent.Units = units;
+end
+
+end
+
+function [] = mvLinkedTips(linkedtips, curtip)
+% Moves all tips linked to the current cursor to the same index on their
+% source.
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Is DataIndex equal for the tips?
+    DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
+    if ~all( DataIndices == DataIndices(1) )
+        rtind = linkedtips{cind} ~= curtip;
+        mvCursors([], [], [linkedtips{cind}(rtind).Cursor], curtip.Cursor); % move tips linked to curtip
+    end
+
+end
+
+end
+
+function [] = mvSrcLinkedTips(linkedtips, curtip, xplobj)
+% If the source of the current cursor has changed then its linked tips are 
+% moved to the remaining sources.
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Are all sources covered?
+    Sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor]);
+    if ~all(ismember(Sources, xplobj))
+        cursrc = curtip.Cursor.DataSource;
+        
+        
+    end
+
+end
+
+end
+
+function [] = updateLinkedTips(fig, lnkdt)
+
+disableFigFcnListener(fig)
+fig.WindowButtonDownFcn{3} = lnkdt;
+fig.WindowButtonUpFcn{4} = lnkdt;
+fig.KeyPressFcn{4} = lnkdt;
+
+end
+
+% --- Callbacks --- %
+function [] = pbtnCallback(src, event, ui, slct, usrcall)
+% Callback function for the view details push button. Takes the currently
+% selected point information and the user supplied anonymous function with
+% arguments. After checking that points have been properly selected will
+% launch the user function with the first three arguments as matlab defined
+% <src>, <event>, and explore_results defined <slct>.
+
+% If points haven't all been selected do nothing.
+% TODO: if there are multiple lines on an axes does this still work?
+if ~isfield(slct, 'ind')
+    return
+end
+for p = 1:length(slct)
+    if isempty(slct(p).ind)
+        return
+    end
+end
+
+% Define the extrenal information structures. These are designed to make it
+% easier to access selected point and all associated data.
+
+usrui = ui;
+usrui.xplr = struct('ln',[],'pnt',[]);
+usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
+for p = 1:length(slct)
+    % Setup ui struct user will see
+    usrui.xplr(p).ln = slct(p).xplobj;
+    usrui.xplr(p).pnt = slct(p).pnt;
+
+    % Setup slct struct user will see
+    usrslct(p).ind = slct(p).ind;
+    usrslct(p).x = slct(p).xplobj.XData;
+    usrslct(p).y = slct(p).xplobj.YData;
+    if isprop(slct(p).xplobj, 'ZData')
+        usrslct(p).z = slct(p).xplobj.ZData;
+    end
+end
+
+% Call the user's function and pass options through
+usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
+
+end
+
+function [] = lnSelectPnt(fig, event, figfcn, lnkdt, ui, slct, slctopt)
+% Callback assigned to each selectable object (line, contour, surface
+% etc.). This is interjected before the standard matlab datatip mode
+% callback is executed and allows us to manage the datatips directly.
+
+% Run the original callback
+figfcn{1}(fig, event, figfcn{2:end});
+
+% If an explorable object was hit we need to continue with "normal" or 
+% "extend" if the modifier is "shift" or "alt" as this means a new data 
+% cursor was created.
+% Note: undocumented event property "HitObject"
+isxplhit = any(ismember([slct.xplobj], event.HitObject));
+% Copied from %matlabroot%/toolbox/matlab/graphics/
+%               datacursormanager.m@localWindowButtonDownFcn()
+mod = get(fig,'CurrentModifier');
+isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
+if ~isxplhit || ~( strcmp(fig.SelectionType,'normal') ...
+        || (isAddRequest && strcmp(fig.SelectionType,'extend')) )
+    return;
+end
+
+% Store the current cursor to reset after
+curcur = ui.dcm.CurrentCursor;
+alldt = findall(fig.Children, 'Type', 'hggroup');
+
+% Determine if a new cursor was added
+if ~isAddRequest && slctopt.SelectionLinkAxes
+    if numel(alldt) < numel([slct.xplobj]) || ( numel([lnkdt{:}]) < numel(alldt) )
+        isAddRequest = true;
+    end
+end
+
+% Link Axes
+if slctopt.SelectionLinkAxes && isAddRequest
+    % Get index of selected object and point
+    s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
+    ind = ui.dcm.CurrentCursor.DataIndex;
+
+    % Make Linked data tips
+    cinfo = getCursorInfo(ui.dcm);
+    xlns = [slct.xplobj]; % explorable lines
+    clns = [cinfo.Target]; % cursor lines
+    % This tip will be overwritten, I just want to initialize with the correct data type
+    newdt = gobjects(0);
+    for ln = xlns(~s)
+        n = clns==ln;
+        % Are there no tips on ln or are the tips at different indices?
+        if all(~n) || all([cinfo(n).DataIndex] ~= ind)
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
+        end
+    end
+    alldt = [alldt; newdt'];
+
+    % Update lnktips
+    curdt = findobj(alldt,'Cursor',curcur);
+    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
+
+    % Add callbacks so that all linked tips are deleted together and moved
+    % together etc.
+    for t = 1:length(lnkdt{end})
+        rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
+        % Add delete functions to linked tips
+        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, ui.dcm, lnkdt{end}(rt), fig};
+        % Add property listener to move tips together - listeners are not
+        % implimented for Datatips yet.
+%         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
+%         plistenS = addlistener(dt(t),'DataSource','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
+    end
+
+    % Reset current cursor
+    ui.dcm.CurrentCursor = curcur;
+
+    % Update callback args
+    updateLinkedTips(fig, lnkdt);
+
+elseif slctopt.SelectionLinkAxes
+    % Ensure datatips move together
+    curdt = findobj(alldt,'Cursor',curcur);
+    mvSrcLinkedTips(lnkdt, curdt, [slct.xplobj])
+    mvLinkedTips(lnkdt, curdt)
+
+end
+
+% Remove extra datatips
+if false
+    % NOT YET IMPLIMENTED
+end
+
+end
+
+function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
+% Delete function callback when cursors are linked. Removes linked tips and
+% updates lnkdt callback argument for fig button down, button up, and key 
+% press functions.
+
+    rmCursorsNoLink([], [], dcm, dt)
+
+    % To avoid needing to update every delete callback for every datatip we
+    % will get the lnkdt variable from the figure callback arguments.
+    lnkdt = getLinkedTips(fig);
+    cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
+    lnkdt = lnkdt(~cind);
+
+    updateLinkedTips(fig, lnkdt)
+
+end
+
+function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
+% Callback to call mvLinkedTips with appropriate arguments.
+
+% If a tip was hit and selection type is normal continue.
+% Note: undocumented event property "HitObject"
+% isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
+if ~strcmp(src.SelectionType,'normal')
+    return;
+end
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Ensure linked tips move with current tip
+mvLinkedTips(lnkdt, curdt)
+
+% Run the original callback
+fcn{1}(src, event, fcn{2:end});
+
+end
+
+function [] = mvLinkedTipsKeyPress(src, event, fcn, dcm, lnkdt)
+% Callback to call mvLinkedTips with appropriate arguments.
+
+% Run the original callback
+fcn{1}(src, event, fcn{2:end});
+
+% Exit early if invalid event data
+if ~isobject(event) || ~isvalid(event)
+    return;
+end
+
+% Do nothing if an arrow key wasn't pressed.
+if ~strcmp(event.Key, {'leftarrow','rightarrow','uparrow','downarrow'})
+    return;
+end
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Ensure linked tips move with current tip
+mvLinkedTips(lnkdt, curdt)
+
+end
+
+function str = dcmUpdate(pdtobj, eobj, ui, slct)
+
+% Get index of selected object
+s = [slct.xplobj] == eobj.Target;
+ind = pdtobj.Cursor.DataIndex;
+
+% Make string of data to display
+str = cell(1,length(slct(s).data));
+try % >= 20XXx
+    ui.dcm.Interpreter;
+    for d = 1:length(slct(s).data)
+        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(slct(s).data{d,2}(ind),4) '}}'];
+    end
+catch % <= 20XXx
+    pdtobj.TextColor = [0.3 0.6 0.3];
+    pdtobj.FontWeight = 'bold';
+    for d = 1:length(slct(s).data)
+        str{d} = [slct(s).data{d,1} ' ' num2str(slct(s).data{d,2}(ind),4)];
+    end
+end
+
+end
+
+% --- Old Functions --- %
 function [txt, edt] = makeValueDispBar(ax, tedat, temarg, varargin)
 % Makes a bar of labeled edit fields under the given axes
 
@@ -617,70 +1047,6 @@ edt.Position = [tpos(1)+dif3/2 tpos(2)-epos(4) epos(3:4)];
 
 end
 
-function [dc] = makeDataCursor(dcm, target, ind, properties)
- 
-% Get the cursor position in data units
-x = target.XData(ind);
-y = target.YData(ind);
-%     if ~isempty(target.ZData)
-%         z = target.ZData(ind);
-%     else
-%         z = 1;
-%     end
- 
-% Get cursor position in pixels
-units = get( target.Parent, 'Units' ); % store fig units
-set( target.Parent, 'Units', 'pixels' ); % set to pixels
-[figpnt(1), figpnt(2)] = data2fig(target.Parent, x, y); % get position
-set( target.Parent, 'Units', units ); % % reset units
- 
-dc = dcm.createDatatip(target, figpnt);
-   
-    % Create a copy of the context menu for the datatip:
-%     set(dc,'UIContextMenu',dcm.UIContextMenu);
-%     set(dc,'HandleVisibility','off');
-%     set(dc,'Host',target);
-%     set(dc,'ViewStyle','datatip');
-   
-%         % Set the data-tip orientation to top-right rather than auto
-%         set(dc,'OrientationMode','manual');
-%         set(dc,'Orientation','top-right');
- 
-    % Update the datatip marker appearance
-%     set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
-%         'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
- 
-%     dc.update([x,y,1; x,y,-1]);
-%     dcm.updateDataCursors
-%     dcm.editUpdateFcn
-   
-end
-
-% --- Utility --- %
-function [] = chkExtent(txt)
-% Checks that the extent of the string in a text object does not exceed the
-% size. Because the 'Extent' property doesn't consider automatic string
-% wrap this function doesn't either.
-
-unit = txt.Units;
-txt.Units = 'pixels';
-
-% Width first - get size difference
-dif3 = txt.Extent(3) - txt.Position(3) + 3; % Include some padding
-% Adjust box size accordingly
-if dif3 > 0
-    txt.Position(3) = txt.Position(3) + dif3;
-end
-% Set the height likewise
-dif4 = txt.Extent(4) - txt.Position(4) + 3;
-if dif4 > 0
-    txt.Position(4) = txt.Position(4) + dif4;
-end
-
-txt.Units = unit; % reset units
-
-end
-
 function [ax_sub_new] = assignCBSubPlotInd(children, ax_sub, cbmap)
 % Assign colorbars the same row and column as their associated axes.
 
@@ -695,55 +1061,6 @@ for c = 1:length(children)
         ax_sub_new(c,:) = ax_sub(c-n,:);
     end
 end
-
-end
-
-function [] = disableFigFcnListener(fig)
-% This uses undocumented functionality, see link below if it breaks. We
-% need to diable some listeners so that we can change the button down
-% function of the figure and interject with our own code first. 
-% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
-hManager = uigetmodemanager(fig);
-try
-    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
-catch
-    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
-end
-
-end
-
-function [xf, yf] = data2fig(ax, x, y)
-% Converts data coordinates (<x> and <y>) on an axes to equivalent
-% coordinates in the figure with the same units as <ax>.
- 
-pos = ax.Position;
- 
-xf = pos(1) + pos(3)*(x - ax.XLim(1))/diff(ax.XLim);
-yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
- 
-end
-
-function [] = rmCursors(~, ~, dcm, dc)
-% Invokes the datacursormanager.removeCursor function to remove an array of
-% cursors.
-%
-% Input
-% ~: 
-%   First two arguments are placeholders for when this function is set as a
-%   callback.
-
-for c = dc(:)'
-    dcm.removeDataCursor(c)
-end
-
-end
-
-function [] = rmCursorsNoLink(~, ~, dcm, dt)
-% Invokes the datacursormanager.removeCursor function to remove an array of
-% cursors after disabling the delete function
-
-set(dt, 'DeleteFcn', []);
-rmCursors([], [], dcm, [dt.Cursor])
 
 end
 
@@ -763,81 +1080,6 @@ end
 
 end
 
-function mvCursors(~,~, dc, curcur)
-% Invokes the datacursor.moveTo function to move an array of cursors to the
-% same index on their sources as curcur
-%
-% Input
-% ~: 
-%   First two arguments are placeholders for when this function is set as a
-%   callback.
-
-ind = curcur.DataIndex;
-for c = dc(:)'
-    x = c.DataSource.XData(ind);
-    y = c.DataSource.YData(ind);
-    if ~isempty(c.DataSource.ZData)
-        z = c.DataSource.ZData(ind);
-    end
-
-    units = c.DataSource.Parent.Units;
-    c.DataSource.Parent.Units = 'pixels';
-
-    [fx, fy] = data2fig(c.DataSource.Parent, x, y);
-    c.moveTo([fx, fy]);
-
-    c.DataSource.Parent.Units = units;
-end
-
-end
-
-function mvLinkedTips(linkedtips, curtip)
-% Moves all tips linked to the current cursor to the same index on their
-% source.
-
-cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
-
-if any(cind)
-    % Is DataIndex equal for the tips?
-    DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
-    if ~all( DataIndices == DataIndices(1) )
-        rtind = linkedtips{cind} ~= curtip;
-        mvCursors([], [], [linkedtips{cind}(rtind).Cursor], curtip.Cursor); % move tips linked to curtip
-    end
-
-end
-
-end
-
-function mvSrcLinkedTips(linkedtips, curtip, xplobj)
-% If the source of the current cursor has changed then its linked tips are 
-% moved to the remaining sources.
-
-cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
-
-if any(cind)
-    % Are all sources covered?
-    Sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor]);
-    if ~all(ismember(Sources, xplobj))
-        cursrc = curtip.Cursor.DataSource;
-        
-        
-    end
-
-end
-
-end
-
-function [] = updateLinkedTips(fig, lnkdt)
-
-disableFigFcnListener(fig)
-fig.WindowButtonDownFcn{3} = lnkdt;
-fig.WindowButtonUpFcn{4} = lnkdt;
-fig.KeyPressFcn{4} = lnkdt;
-
-end
-
-% --- Callbacks --- %
 function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
 % Assigned as ButtonDownFcn to a line to select nearest point when line is
 % clicked
@@ -968,224 +1210,6 @@ end
 % Update slct structure in 'View Details' callback function
 for pb  = ui.fig.pbtn'
     pb.Callback{3} = slct;
-end
-
-end
-
-function [] = pbtnCallback(src, event, ui, slct, usrcall)
-% Callback function for the view details push button. Takes the currently
-% selected point information and the user supplied anonymous function with
-% arguments. After checking that points have been properly selected will
-% launch the user function with the first three arguments as matlab defined
-% <src>, <event>, and explore_results defined <slct>.
-
-% If points haven't all been selected do nothing.
-% TODO: if there are multiple lines on an axes does this still work?
-if ~isfield(slct, 'ind')
-    return
-end
-for p = 1:length(slct)
-    if isempty(slct(p).ind)
-        return
-    end
-end
-
-% Define the extrenal information structures. These are designed to make it
-% easier to access selected point and all associated data.
-
-usrui = ui;
-usrui.xplr = struct('ln',[],'pnt',[]);
-usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
-for p = 1:length(slct)
-    % Setup ui struct user will see
-    usrui.xplr(p).ln = slct(p).xplobj;
-    usrui.xplr(p).pnt = slct(p).pnt;
-
-    % Setup slct struct user will see
-    usrslct(p).ind = slct(p).ind;
-    usrslct(p).x = slct(p).xplobj.XData;
-    usrslct(p).y = slct(p).xplobj.YData;
-    if isprop(slct(p).xplobj, 'ZData')
-        usrslct(p).z = slct(p).xplobj.ZData;
-    end
-end
-
-% Call the user's function and pass options through
-usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
-
-end
-
-function [] = lnSelectPnt(fig, event, figfcn, lnkdt, ui, slct, slctopt)
-% Callback assigned to each selectable object (line, contour, surface
-% etc.). This is interjected before the standard matlab datatip mode
-% callback is executed and allows us to manage the datatips directly.
-
-% Run the original callback
-figfcn{1}(fig, event, figfcn{2:end});
-
-% If an explorable object was hit we need to continue with "normal" or 
-% "extend" if the modifier is "shift" or "alt" as this means a new data 
-% cursor was created.
-% Note: undocumented event property "HitObject"
-isxplhit = any(ismember([slct.xplobj], event.HitObject));
-% Copied from %matlabroot%/toolbox/matlab/graphics/
-%               datacursormanager.m@localWindowButtonDownFcn()
-mod = get(fig,'CurrentModifier');
-isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
-if ~isxplhit || ~( strcmp(fig.SelectionType,'normal') ...
-        || (isAddRequest && strcmp(fig.SelectionType,'extend')) )
-    return;
-end
-
-% Store the current cursor to reset after
-curcur = ui.dcm.CurrentCursor;
-alldt = findall(fig.Children, 'Type', 'hggroup');
-
-% Determine if a new cursor was added
-if ~isAddRequest && slctopt.SelectionLinkAxes
-    if numel(alldt) < numel([slct.xplobj]) || ( numel([lnkdt{:}]) < numel(alldt) )
-        isAddRequest = true;
-    end
-end
-
-% Link Axes
-if slctopt.SelectionLinkAxes && isAddRequest
-    % Get index of selected object and point
-    s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
-    ind = ui.dcm.CurrentCursor.DataIndex;
-
-    % Make Linked data tips
-    cinfo = getCursorInfo(ui.dcm);
-    xlns = [slct.xplobj]; % explorable lines
-    clns = [cinfo.Target]; % cursor lines
-    % This tip will be overwritten, I just want to initialize with the correct data type
-    newdt = gobjects(0);
-    for ln = xlns(~s)
-        n = clns==ln;
-        % Are there no tips on ln or are the tips at different indices?
-        if all(~n) || all([cinfo(n).DataIndex] ~= ind)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
-        end
-    end
-    alldt = [alldt; newdt'];
-
-    % Update lnktips
-    curdt = findobj(alldt,'Cursor',curcur);
-    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
-
-    % Add callbacks so that all linked tips are deleted together and moved
-    % together etc.
-    for t = 1:length(lnkdt{end})
-        rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
-        % Add delete functions to linked tips
-        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, ui.dcm, lnkdt{end}(rt), fig};
-        % Add property listener to move tips together - listeners are not
-        % implimented for Datatips yet.
-%         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
-%         plistenS = addlistener(dt(t),'DataSource','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
-    end
-
-    % Reset current cursor
-    ui.dcm.CurrentCursor = curcur;
-
-    % Update callback args
-    updateLinkedTips(fig, lnkdt);
-
-elseif slctopt.SelectionLinkAxes
-    % Ensure datatips move together
-    curdt = findobj(alldt,'Cursor',curcur);
-    mvSrcLinkedTips(lnkdt, curdt, [slct.xplobj])
-    mvLinkedTips(lnkdt, curdt)
-%     lnkdt = rmMovedLinkedTips(ui.dcm, lnkdt, curdt);
-
-end
-
-% Remove extra datatips
-if false
-    % NOT YET IMPLIMENTED
-end
-
-end
-
-function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
-% Delete function callback when cursors are linked. Removed linked tips and
-% updates lnkdt callback argument for fig button down, button up, and key 
-% press functions.
-
-    rmCursorsNoLink([], [], dcm, dt)
-
-    lnkdt = getLinkedTips(fig);
-    cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
-    lnkdt = lnkdt(~cind);
-
-    updateLinkedTips(fig, lnkdt)
-
-end
-
-function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
-% Callback to call mvLinkedTips with appropriate arguments.
-
-% If a tip was hit and selection type is normal continue.
-% Note: undocumented event property "HitObject"
-% isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
-if ~strcmp(src.SelectionType,'normal')
-    return;
-end
-
-% Get the current datatip
-curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
-
-% Ensure linked tips move with current tip
-mvLinkedTips(lnkdt, curdt)
-
-% Run the original callback
-fcn{1}(src, event, fcn{2:end});
-
-end
-
-function [] = mvLinkedTipsKeyPress(src, event, fcn, dcm, lnkdt)
-% Callback to call mvLinkedTips with appropriate arguments.
-
-% Run the original callback
-fcn{1}(src, event, fcn{2:end});
-
-% Exit early if invalid event data
-if ~isobject(event) || ~isvalid(event)
-    return;
-end
-
-% Do nothing if an arrow key wasn't pressed.
-if ~strcmp(event.Key, {'leftarrow','rightarrow','uparrow','downarrow'})
-    return;
-end
-
-% Get the current datatip
-curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
-
-% Ensure linked tips move with current tip
-mvLinkedTips(lnkdt, curdt)
-
-end
-
-function str = dcmUpdate(pdtobj, eobj, ui, slct)
-
-% Get index of selected object
-s = [slct.xplobj] == eobj.Target;
-ind = pdtobj.Cursor.DataIndex;
-
-% Make string of data to display
-str = cell(1,length(slct(s).data));
-try % >= 20XXx
-    ui.dcm.Interpreter;
-    for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(slct(s).data{d,2}(ind),4) '}}'];
-    end
-catch % <= 20XXx
-    pdtobj.TextColor = [0.3 0.6 0.3];
-    pdtobj.FontWeight = 'bold';
-    for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' ' num2str(slct(s).data{d,2}(ind),4)];
-    end
 end
 
 end
