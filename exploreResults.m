@@ -127,6 +127,8 @@ xplr.ax = getExplorableAx(fig, xplr.ln);
 % callbacks. 
 %   ui.pbtn is an array holding all pbtn objects
 %   ui.dcm holds the datacursormode object
+% Calling datacursormode here creates the mode object, whose default
+% functions we will change to add our own functionality.
 ui = struct('pbtn', [], 'dcm', datacursormode(fig));
 
 % Get objects selected points will be associated with. This is passed to
@@ -277,7 +279,7 @@ end
 
 %% --- Setup UI --- %%
 % uispec = cell(1,length(xplr.ax));
-ui.dcm.Enable = 'on'; % turn data cursor mode on
+% ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
@@ -324,17 +326,29 @@ end
 % Assign listener to dcm 'Enable' property
 % plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, slct, slctopt, {}});
 
-% Assign button down callback for figure window
-disableFigFcnListener(fig)
+% Assign defualt callbacks to dcmode
+dcmode = getuimode(fig, 'Exploration.Datacursor');
 % Set button down function
-wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
-fig.WindowButtonDownFcn = wndwfcn;
+wndwfcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, {}, ui, slct, slctopt};
+dcmode.WindowButtonDownFcn = wndwfcn;
 % Set button up function
-wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, {}};
-fig.WindowButtonUpFcn = wndwfcn;
+wndwfcn = {@mvLinkedTipsButtonUp, dcmode.WindowButtonUpFcn, ui.dcm, {}};
+dcmode.WindowButtonUpFcn = wndwfcn;
 % Set key press function
-wndwfcn = {@mvLinkedTipsKeyPress, fig.KeyPressFcn, ui.dcm, {}};
-fig.KeyPressFcn = wndwfcn;
+wndwfcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
+dcmode.KeyPressFcn = wndwfcn;
+
+% % Assign button down callback for figure window
+% disableFigFcnListener(fig)
+% % Set button down function
+% wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
+% fig.WindowButtonDownFcn = wndwfcn;
+% % Set button up function
+% wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, {}};
+% fig.WindowButtonUpFcn = wndwfcn;
+% % Set key press function
+% wndwfcn = {@mvLinkedTipsKeyPress, fig.KeyPressFcn, ui.dcm, {}};
+% fig.KeyPressFcn = wndwfcn;
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
@@ -347,7 +361,7 @@ ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
 % end
 
 %% --- Finalize Figure Properties --- %%
-% ui.dcm.Enable = 'on';
+ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
