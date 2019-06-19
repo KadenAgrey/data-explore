@@ -789,13 +789,15 @@ usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
 
 end
 
-function [] = lnSelectPnt(fig, event, figfcn, lnkdt, ui, slct, slctopt)
+function [] = lnSelectPnt(fig, event, fcn, lnkdt, ui, slct, slctopt)
 % Callback assigned to each selectable object (line, contour, surface
 % etc.). This is interjected before the standard matlab datatip mode
 % callback is executed and allows us to manage the datatips directly.
 
 % Run the original callback
-figfcn{1}(fig, event, figfcn{2:end});
+if isa(fcn,'function_handle')
+   fcn(src, event);
+end
 
 % If an explorable object was hit we need to continue with "normal" or 
 % "extend" if the modifier is "shift" or "alt" as this means a new data 
@@ -900,6 +902,14 @@ end
 function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
 % Callback to call mvLinkedTips with appropriate arguments.
 
+% Run the original callback
+if isa(fcn,'function_handle')
+   fcn(src, event);
+end
+
+% % Execute the specified callback function
+% hgfeval(newButtonUpFcn,hFig,evd);
+
 % If a tip was hit and selection type is normal continue.
 % Note: undocumented event property "HitObject"
 % isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
@@ -913,16 +923,15 @@ curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
 % Ensure linked tips move with current tip
 mvLinkedTips(lnkdt, curdt)
 
-% Run the original callback
-fcn{1}(src, event, fcn{2:end});
-
 end
 
 function [] = mvLinkedTipsKeyPress(src, event, fcn, dcm, lnkdt)
 % Callback to call mvLinkedTips with appropriate arguments.
 
 % Run the original callback
-fcn{1}(src, event, fcn{2:end});
+if isa(fcn,'function_handle')
+   fcn(src, event);
+end
 
 % Exit early if invalid event data
 if ~isobject(event) || ~isvalid(event)
