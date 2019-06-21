@@ -329,26 +329,18 @@ end
 % Assign defualt callbacks to dcmode
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 % Set button down function
-wndwfcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, {}, ui, slct, slctopt};
-dcmode.WindowButtonDownFcn = wndwfcn;
+fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, {}, ui, slct, slctopt};
+dcmode.WindowButtonDownFcn = fcn;
 % Set button up function
-wndwfcn = {@mvLinkedTipsButtonUp, dcmode.WindowButtonUpFcn, ui.dcm, {}};
-dcmode.WindowButtonUpFcn = wndwfcn;
+fcn = {@mvLinkedTipsButtonUp, dcmode.WindowButtonUpFcn, ui.dcm, {}};
+dcmode.WindowButtonUpFcn = fcn;
 % Set key press function
-wndwfcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
-dcmode.KeyPressFcn = wndwfcn;
-
-% % Assign button down callback for figure window
-% disableFigFcnListener(fig)
-% % Set button down function
-% wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, {}, ui, slct, slctopt};
-% fig.WindowButtonDownFcn = wndwfcn;
-% % Set button up function
-% wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, {}};
-% fig.WindowButtonUpFcn = wndwfcn;
-% % Set key press function
-% wndwfcn = {@mvLinkedTipsKeyPress, fig.KeyPressFcn, ui.dcm, {}};
-% fig.KeyPressFcn = wndwfcn;
+fcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
+dcmode.KeyPressFcn = fcn;
+% Set stop mode function - not needed if we continuously update mode
+% callback args.
+% fcn = {@updateArgsOnStop, dcmode.ModeStopFcn, dcmode};
+% dcmode.ModeStopFcn = fcn;
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
@@ -536,7 +528,12 @@ function [lnkdt] = getLinkedTips(fig)
 % Gets linked tips cell array from fig window button down function
 % arguments.
 
-lnkdt = fig.WindowButtonDownFcn{3};
+dcmode = getuimode(fig, 'Exploration.Datacursor');
+if ~isempty(dcmode)
+    lnkdt = dcmode.WindowButtonDownFcn{3};
+else % if the figure is being closed return an empty cell
+    lnkdt = {};
+end
 
 end
 
@@ -557,6 +554,32 @@ fig.KeyPressFcn = wndwfcn;
 
 end
 
+function [] = setLinkedTips(fig, lnkdt)
+% Update lnkdt argument in figure and mode callbacks
+
+setLinkedTipsFig(fig, lnkdt);
+dcmode = getuimode(fig, 'Exploration.Datacursor');
+setLinkedTipsMode(dcmode, lnkdt);
+
+end
+
+function [] = setLinkedTipsFig(fig, lnkdt)
+
+disableFigFcnListener(fig)
+fig.WindowButtonDownFcn{end}{3} = lnkdt;
+fig.WindowButtonUpFcn{end}{4} = lnkdt;
+fig.KeyPressFcn{end}{4} = lnkdt;
+
+end
+
+function [] = setLinkedTipsMode(mode, lnkdt)
+
+mode.WindowButtonDownFcn{3} = lnkdt;
+mode.WindowButtonUpFcn{4} = lnkdt;
+mode.KeyPressFcn{4} = lnkdt;
+
+end
+
 % --- Makers --- %
 function [dc] = makeDataCursor(dcm, target, ind, properties)
  
@@ -568,33 +591,33 @@ y = target.YData(ind);
 %     else
 %         z = 1;
 %     end
- 
+
 % Get cursor position in pixels
 units = get( target.Parent, 'Units' ); % store fig units
 set( target.Parent, 'Units', 'pixels' ); % set to pixels
 [figpnt(1), figpnt(2)] = data2fig(target.Parent, x, y); % get position
 set( target.Parent, 'Units', units ); % % reset units
- 
+
 dc = dcm.createDatatip(target, figpnt);
-   
-    % Create a copy of the context menu for the datatip:
-%     set(dc,'UIContextMenu',dcm.UIContextMenu);
-%     set(dc,'HandleVisibility','off');
-%     set(dc,'Host',target);
-%     set(dc,'ViewStyle','datatip');
-   
-%         % Set the data-tip orientation to top-right rather than auto
-%         set(dc,'OrientationMode','manual');
-%         set(dc,'Orientation','top-right');
- 
-    % Update the datatip marker appearance
-%     set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
-%         'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
- 
-%     dc.update([x,y,1; x,y,-1]);
-%     dcm.updateDataCursors
-%     dcm.editUpdateFcn
-   
+
+% % Create a copy of the context menu for the datatip:
+% set(dc,'UIContextMenu',dcm.UIContextMenu);
+% set(dc,'HandleVisibility','off');
+% set(dc,'Host',target);
+% set(dc,'ViewStyle','datatip');
+% 
+% % Set the data-tip orientation to top-right rather than auto
+% set(dc,'OrientationMode','manual');
+% set(dc,'Orientation','top-right');
+% 
+% % Update the datatip marker appearance
+% set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+%     'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+% 
+% dc.update([x,y,1; x,y,-1]);
+% dcm.updateDataCursors
+% dcm.editUpdateFcn
+
 end
 
 % --- Utility --- %
@@ -719,29 +742,42 @@ end
 
 function [] = mvSrcLinkedTips(linkedtips, curtip, xplobj)
 % If the source of the current cursor has changed then its linked tips are 
-% moved to the remaining sources.
+% moved to the remaining sources. This algorithm is fast enough for
+% reassigning a few tips, but can be made much more efficient if required.
 
 cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
 
 if any(cind)
-    % Are all sources covered?
-    Sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor]);
-    if ~all(ismember(Sources, xplobj))
-        cursrc = curtip.Cursor.DataSource;
-        
-        
+    % Are all explorable sources covered?
+    Sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor], 'UniformOutput', false);
+    cursrc = curtip.Cursor.DataSource; % source of current tip
+
+    % Find which xplobj's have been used
+    xplUsed = false(length(xplobj),1);
+    for m = 1:length(xplobj)
+        x = xplobj(m);
+
+        for S = Sources
+            if x{1} == S{1}
+                xplUsed(m) = true;
+                break;
+            end
+        end
+    end
+
+    curxpl = cellfun(@(C) isequal(C, cursrc), xplobj); % current xplobj
+    if ~all(xplUsed) % if all xplobj aren't used
+        xplUsed = curxpl; % reset xplUsed
+        curlnk = linkedtips{cind} == curtip; % find current tip in linkedtips
+        % Assign cursors to remaining data sources
+        for tip = linkedtips{cind}(~curlnk)
+            x = find(~xplUsed,1); % location of first unused src
+            tip.DataSource = xplobj{x};
+            xplUsed(x) = true;
+        end
     end
 
 end
-
-end
-
-function [] = updateLinkedTips(fig, lnkdt)
-
-disableFigFcnListener(fig)
-fig.WindowButtonDownFcn{3} = lnkdt;
-fig.WindowButtonUpFcn{4} = lnkdt;
-fig.KeyPressFcn{4} = lnkdt;
 
 end
 
@@ -796,14 +832,14 @@ function [] = lnSelectPnt(fig, event, fcn, lnkdt, ui, slct, slctopt)
 
 % Run the original callback
 if isa(fcn,'function_handle')
-   fcn(src, event);
+   fcn(fig, event);
 end
 
 % If an explorable object was hit we need to continue with "normal" or 
 % "extend" if the modifier is "shift" or "alt" as this means a new data 
 % cursor was created.
 % Note: undocumented event property "HitObject"
-isxplhit = any(ismember([slct.xplobj], event.HitObject));
+isxplhit = any(arrayfun( @(S) isequal(S.xplobj, event.HitObject), slct ));
 % Copied from %matlabroot%/toolbox/matlab/graphics/
 %               datacursormanager.m@localWindowButtonDownFcn()
 mod = get(fig,'CurrentModifier');
@@ -819,7 +855,7 @@ alldt = findall(fig.Children, 'Type', 'hggroup');
 
 % Determine if a new cursor was added
 if ~isAddRequest && slctopt.SelectionLinkAxes
-    if numel(alldt) < numel([slct.xplobj]) || ( numel([lnkdt{:}]) < numel(alldt) )
+    if numel(alldt) < numel(slct) || ( numel([lnkdt{:}]) < numel(alldt) )
         isAddRequest = true;
     end
 end
@@ -827,20 +863,20 @@ end
 % Link Axes
 if slctopt.SelectionLinkAxes && isAddRequest
     % Get index of selected object and point
-    s = [slct.xplobj] == ui.dcm.CurrentCursor.DataSource;
+    s = arrayfun( @(S) isequal(S.xplobj, ui.dcm.CurrentCursor.DataSource), slct );
     ind = ui.dcm.CurrentCursor.DataIndex;
 
     % Make Linked data tips
     cinfo = getCursorInfo(ui.dcm);
-    xlns = [slct.xplobj]; % explorable lines
+    xlns = {slct.xplobj}; % explorable lines
     clns = [cinfo.Target]; % cursor lines
     % This tip will be overwritten, I just want to initialize with the correct data type
     newdt = gobjects(0);
     for ln = xlns(~s)
-        n = clns==ln;
+        n = clns==ln{1};
         % Are there no tips on ln or are the tips at different indices?
         if all(~n) || all([cinfo(n).DataIndex] ~= ind)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln{1}, ind, []);
         end
     end
     alldt = [alldt; newdt'];
@@ -865,14 +901,14 @@ if slctopt.SelectionLinkAxes && isAddRequest
     ui.dcm.CurrentCursor = curcur;
 
     % Update callback args
-    updateLinkedTips(fig, lnkdt);
+    setLinkedTips(fig, lnkdt)
 
 elseif slctopt.SelectionLinkAxes
     % Ensure datatips move together
     curdt = findobj(alldt,'Cursor',curcur);
-    mvSrcLinkedTips(lnkdt, curdt, [slct.xplobj])
-    mvLinkedTips(lnkdt, curdt)
-
+    mvSrcLinkedTips(lnkdt, curdt, {slct.xplobj})
+    % We don't need to move the tips here because this is handled in the
+    % button up function. We only ensure data sources are correct.
 end
 
 % Remove extra datatips
@@ -890,13 +926,12 @@ function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
     rmCursorsNoLink([], [], dcm, dt)
 
     % To avoid needing to update every delete callback for every datatip we
-    % will get the lnkdt variable from the figure callback arguments.
+    % will get the lnkdt variable from the mode callback arguments.
     lnkdt = getLinkedTips(fig);
     cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
     lnkdt = lnkdt(~cind);
 
-    updateLinkedTips(fig, lnkdt)
-
+    setLinkedTips(fig, lnkdt)
 end
 
 function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
@@ -971,6 +1006,16 @@ catch % <= 20XXx
         str{d} = [slct(s).data{d,1} ' ' num2str(slct(s).data{d,2}(ind),4)];
     end
 end
+
+end
+
+function [] = updateArgsOnStop(fcn, dcmode)
+% Updates lnkdt arguments in uimode functions before disabling the mode so
+% that they are correct when the mode is enabled again.
+
+setLinkedTipsMode(dcmode, getLinkedTips(dcmode.FigureHandle));
+
+fcn{1}(fcn{2:end});
 
 end
 
