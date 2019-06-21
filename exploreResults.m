@@ -107,9 +107,10 @@ fig = in.Results.fig;
 %% --- Initialize --- %%
 % These variables define the size and spacing of the ui objects
 pbtn_h = 30; % [pixels] PushButton height
-pbtn_blw_marg = 5; % [pixels] Margin below PushButton
-txtedt_h = 20*2; % [pixels] Text & Edit box height
-txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
+pbtn_blw_marg = 5; % [pixels] margin below PushButton
+pbtn_abv_marg = 3; % [pixels] margin above PushButton
+% txtedt_h = 20*2; % [pixels] Text & Edit box height
+% txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
 slctopt_fields = {'SelectionLinkAxes'};
 % slctopt_fields = {'SelectionLinkAxes','SelectionPerLine',...
 %                   'SelectionPerAxes'};
@@ -124,7 +125,7 @@ xplr = struct('ax', [], 'ln', getExplorableLines(fig, in.Results.lines));
 xplr.ax = getExplorableAx(fig, xplr.ln);
 
 % Initialize the struct to reference ui objects, this is passed to 
-% callbacks. 
+% callbacks.
 %   ui.pbtn is an array holding all pbtn objects
 %   ui.dcm holds the datacursormode object
 % Calling datacursormode here creates the mode object, whose default
@@ -259,10 +260,10 @@ end
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
-fig.Position(4) = fig.Position(4) + pbtn_h + pbtn_blw_marg + txtedtmarg(1);
+fig.Position(4) = fig.Position(4) + pbtn_h + pbtn_blw_marg + pbtn_abv_marg;
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 for ch = children'
-    ch.Position(2) = ch.Position(2) + pbtn_h + pbtn_blw_marg + txtedtmarg(1);
+    ch.Position(2) = ch.Position(2) + pbtn_h + pbtn_blw_marg + pbtn_abv_marg;
 end
 
 % --- Make non-explorable axes children 'unpickable' --- %
@@ -279,7 +280,6 @@ end
 
 %% --- Setup UI --- %%
 % uispec = cell(1,length(xplr.ax));
-% ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Make button to view details of selected point
 horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
@@ -326,7 +326,7 @@ end
 % Assign listener to dcm 'Enable' property
 % plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, slct, slctopt, {}});
 
-% Assign defualt callbacks to dcmode
+% Assign default callbacks to dcmode
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 % Set button down function
 fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, {}, ui, slct, slctopt};
@@ -344,13 +344,6 @@ dcmode.KeyPressFcn = fcn;
 
 % Assign UpdateFcn to data cursor mode object
 ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
-
-% Assign ButtonDownFcn to selectable objects in figures
-% for ob = 1:length(slct)
-%     % Pass structs with selected point information (slct) and updatable ui 
-%     % objects (ui). Pass index of current selectable object.
-%     slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
-% end
 
 %% --- Finalize Figure Properties --- %%
 ui.dcm.Enable = 'on'; % turn data cursor mode on
@@ -783,45 +776,41 @@ end
 
 % --- Callbacks --- %
 function [] = pbtnCallback(src, event, ui, slct, usrcall)
-% Callback function for the view details push button. Takes the currently
+% Callback function for the user push buttons. Takes the currently
 % selected point information and the user supplied anonymous function with
 % arguments. After checking that points have been properly selected will
-% launch the user function with the first three arguments as matlab defined
-% <src>, <event>, and explore_results defined <slct>.
+% launch the user function with the first four arguments as matlab defined
+% <src>, <event>, and exploreResults defined <usrobj> and <usrslct>.
+% 
+% TODO: What should be done if no points are selected? What about if less
+% points than explorable objects have been selected?
+% 
+% TODO: Currently haven't decided how to handle linked data tips here. I'm
+% thinking of changing the whole system over to a list of indices to make
+% things easier here and in the figure callbacks.
 
-% If points haven't all been selected do nothing.
-% TODO: if there are multiple lines on an axes does this still work?
-if ~isfield(slct, 'ind')
-    return
-end
-for p = 1:length(slct)
-    if isempty(slct(p).ind)
-        return
-    end
-end
-
-% Define the extrenal information structures. These are designed to make it
+% Define the external information structures. These are designed to make it
 % easier to access selected point and all associated data.
 
-usrui = ui;
-usrui.xplr = struct('ln',[],'pnt',[]);
-usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
-for p = 1:length(slct)
-    % Setup ui struct user will see
-    usrui.xplr(p).ln = slct(p).xplobj;
-    usrui.xplr(p).pnt = slct(p).pnt;
+% Contains ui graphics objects and lines associated with displayed data.
+usrobj = struct('xpl', slct, 'dcm', ui.dcm, 'pbtn', ui.pbtn);
+usrslct = struct('line', [], 'linenum', [], 'links', [], 'index', [], 'point', []);
 
-    % Setup slct struct user will see
-    usrslct(p).ind = slct(p).ind;
-    usrslct(p).x = slct(p).xplobj.XData;
-    usrslct(p).y = slct(p).xplobj.YData;
-    if isprop(slct(p).xplobj, 'ZData')
-        usrslct(p).z = slct(p).xplobj.ZData;
-    end
+for p = 1:length(cinfo)
+    lnnum = find( cellfun(@(C) isequal(C, cinfo(p).Target), {slct.xplobj}) , 1 ); % index of line in list of explorable objects
+
+    % Get Target (line) and DataIndex (index) from cursor info
+    usrslct(p).line = cinfo(p).Target;
+    usrslct(p).linenum = lnnum; 
+    usrslct(p).index = cinfo(p).DataIndex;
+
+    % Get (point) manually
+    data = [slct(lnnum).data{:,2}];
+    usrslct(p).point = data(:,cinfo(p).DataIndex);
 end
 
-% Call the user's function and pass options through
-usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
+% Call the user's function and pass arguments through
+usrcall{1}( src, event, usrobj, usrslct, usrcall{2:end} );
 
 end
 
@@ -1019,7 +1008,7 @@ fcn{1}(fcn{2:end});
 
 end
 
-% --- Old Functions --- %
+%% --- Old Functions --- %%
 function [txt, edt] = makeValueDispBar(ax, tedat, temarg, varargin)
 % Makes a bar of labeled edit fields under the given axes
 
