@@ -796,6 +796,7 @@ function [] = pbtnCallback(src, event, ui, slct, usrcall)
 usrobj = struct('xpl', slct, 'dcm', ui.dcm, 'pbtn', ui.pbtn);
 usrslct = struct('line', [], 'linenum', [], 'links', [], 'index', [], 'point', []);
 
+cinfo = ui.dcm.getCursorInfo;
 for p = 1:length(cinfo)
     lnnum = find( cellfun(@(C) isequal(C, cinfo(p).Target), {slct.xplobj}) , 1 ); % index of line in list of explorable objects
 
