@@ -91,13 +91,14 @@ in.addRequired('pbtnfcn'); % function handle (with arguments) to call when butto
 % Optional Positional
 in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
 % Optional Name/Value Pairs
-in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
-in.addParameter('DataBoxFromUser',{}); % display boxes will be added with user data
+in.addParameter('DataFromAxes',true); % display data from axes in boxes
+in.addParameter('DataFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
 % in.addParameter('SelectionPerLine', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionPerAxes', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionProperties', []); % properties of selection marker
-% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons
+% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow
+% manual entry of data into display boxes (will be passed to push buttons)
 
 in.parse(fig, pbtnfcn, varargin{:})
 
@@ -142,12 +143,12 @@ for p = 1:length(xplr.ln)
     if isempty(slct(p).xplobj.ZData)
         slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
                          slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData}; ...
-                        in.Results.DataBoxFromUser{p}];
+                        in.Results.DataFromUser{p}];
     else
         slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
                          slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData; ...
                          slct(p).xplobj.Parent.ZLabel.String, slct(p).xplobj.ZData}; ...
-                        in.Results.DataBoxFromUser(p)];
+                        in.Results.DataFromUser(p)];
     end
 end
 
@@ -197,7 +198,7 @@ end
 % 
 %         % If the child is Explorable then add the row to the pad list
 %         ind = children(ch)==xplr.ax;
-%         if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
+%         if any(ind) && ( in.Results.DataFromAxes || ~isempty(in.Results.DataFromUser(ind)) )
 %             pad_row(length(pad_row)+1,1) = row;
 %             break
 %         end
@@ -304,12 +305,12 @@ end
 %     txtopt = {'Position', [0 0 75 txtedt_h/2]};
 %     editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
 % 
-%     if in.Results.DataBoxFromAxes % user setting to use figure axes data
+%     if in.Results.DataFromAxes % user setting to use figure axes data
 %         axdat = getAxesData(xplr.ax(a), xplr.ln);
-%         if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
+%         if isempty(in.Results.DataFromUser) || isempty(in.Results.DataFromUser{a})
 %             uispec{a} = axdat;
 %         else
-%             uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
+%             uispec{a} = [axdat, in.Results.DataFromUser{a}];
 %         end
 %     end
 % 
