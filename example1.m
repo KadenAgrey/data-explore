@@ -53,7 +53,7 @@ usefigdat = true; % use data from figure for display boxes
 linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines1, 'DataBoxFromUser', uispec, 'DataBoxFromAxes', usefigdat, 'SelectionLinkAxes', linkselect );
+exploreResults( mainfig, pbtn_callback, lines1, 'DataFromUser', uispec, 'DataFromAxes', usefigdat, 'SelectionLinkAxes', linkselect );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, newfig)
@@ -64,7 +64,7 @@ function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, n
 % I recomend placing a breakpoint in here and running the script to take a
 % look at the structure of the arguments passed to this function
 
-ind = slct(1).ind; % for this case all indices should be the same
+ind = slct(1).index; % for this case all indices should be the same
 
 % --- Do something for fun --- %
 if ~isempty(extrapnt) && isvalid(extrapnt)
@@ -74,7 +74,7 @@ end
 extrapnt = line(ln.XData(ind), ln.YData(ind), 'LineStyle', 'none', 'Marker', '+', 'MarkerSize', 10);
 
 % If this point on the third plot is below the cutoff
-if abs(ui.xplr(3).ln.YData(ind)) < cutoff
+if abs(ui.xpl(3).data{2,2}(ind)) < cutoff
     if ~isempty(newfig) && isvalid(newfig)
         close(newfig);
     end
