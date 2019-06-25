@@ -135,21 +135,26 @@ ui = struct('pbtn', [], 'dcm', datacursormode(fig));
 
 % Get objects selected points will be associated with. This is passed to
 % callbacks.
+if isempty(in.Results.DataFromUser)
+    user_data = cell(length(xplr.ln),1);
+else
+    user_data = in.Results.DataFromUser;
+end
+
 slct = struct('xplobj', [], 'data', []);
 for p = 1:length(xplr.ln)
     slct(p).xplobj = xplr.ln(p);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ugly
     if isempty(slct(p).xplobj.ZData)
-        slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
-                         slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData}; ...
-                        in.Results.DataFromUser{p}];
+        slct(p).data = {slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
+                        slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData};
     else
-        slct(p).data = [{slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
-                         slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData; ...
-                         slct(p).xplobj.Parent.ZLabel.String, slct(p).xplobj.ZData}; ...
-                        in.Results.DataFromUser(p)];
+        slct(p).data = {slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
+                        slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData; ...
+                        slct(p).xplobj.Parent.ZLabel.String, slct(p).xplobj.ZData};
     end
+    slct(p).data = [slct(p).data; user_data{p}];
 end
 
 % Define a struct containing selection options to pass to the callbacks
@@ -653,6 +658,35 @@ end
 
 end
 
+function [] = data2pnt(data, ind)
+% Converts linear indices into the corresponding data point. This function
+% accounts for gridded data. If the data are from a mesh grid object
+% (surface or volumetric) then x, y, and z may be given as vectors. If this
+% is the case it's assumed this spatial information comes first, and that
+% the first non-vector data is the levels.
+
+isvec = cellfun(@(C) isvector(C),data);
+% ismat = cellfun(@(C) ismatrix(C),data);
+if ~all(isvec) || ~all(ismat)
+    levi = find(~isvec,1); % index of 'level' data
+    if levi < 3
+        [s(1), s(2)] = ind2sub(size(data{levi}), ind);
+    else
+        [s(1), s(2), s(3)] = ind2sub(size(data{levi}), ind);
+    end
+end
+
+pnt = zeros(length(data));
+for p = 1:length(data)
+    if isvec(p)
+        pnt(p) = data{p}(
+    else
+        
+    end
+end
+
+end
+
 function [xf, yf] = data2fig(ax, x, y)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
@@ -982,6 +1016,9 @@ function str = dcmUpdate(pdtobj, eobj, ui, slct)
 % Get index of selected object
 s = [slct.xplobj] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
+
+% Get data point
+pnt = data2pnt(slct(s).data(:,2), ind);
 
 % Make string of data to display
 str = cell(1,length(slct(s).data));
