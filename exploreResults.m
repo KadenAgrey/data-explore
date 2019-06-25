@@ -657,7 +657,7 @@ end
 
 end
 
-function [pnt] = data2pnt(line, data, ind)
+function [pnt] = ind2pnt(line, data, ind)
 % Converts linear indices into the corresponding data point. This function
 % accounts for gridded data. If the data are from a mesh grid object
 % (surface or volumetric) then x, y, and z may be given as vectors. If this
@@ -699,6 +699,37 @@ end
 
 for p = 1:length(data)
     pnt(p) = data{p}(sub(p));
+end
+
+end
+
+function [ind] = pnt2ind(line, pnt)
+% Uses X, Y, and ZData in a line to find the associated index of a given
+% point. Will always return the linear index matching the ZData, even if X
+% and Y are vectors.
+
+if strcmp(line.Type, {'contour', 'surface'})
+% Data is a grid
+    % We must search the X and Y data for subscripts because ZData may not 
+    % be unique.
+    % Get x index
+    if isvector(line.XData) % XData is a vector
+        x = find(line.XData == pnt(1), 1);
+    else % XData is a nd grid
+        x = find(line.XData(1,:) == pnt(1), 1);
+    end
+    % Get y index
+    if isvector(line.YData) % XData is a vector
+        y = find(line.YData == pnt(2), 1);
+    else % XData is a nd grid
+        y = find(line.YData(1,:) == pnt(2), 1);
+    end
+
+    % Convert to linear index
+    ind = sub2ind(size(line.ZData),[y x]);
+else
+% Data is a 1D sequence.
+    ind = find(line.XData == pnt(1), 1);
 end
 
 end
@@ -851,14 +882,20 @@ cinfo = ui.dcm.getCursorInfo;
 for p = 1:length(cinfo)
     lnnum = find( cellfun(@(C) isequal(C, cinfo(p).Target), {slct.xplobj}) , 1 ); % index of line in list of explorable objects
 
-    % Get Target (line) and DataIndex (index) from cursor info
+    % Get Target .(line)
     usrslct(p).line = cinfo(p).Target;
-    usrslct(p).linenum = lnnum; 
-    usrslct(p).index = cinfo(p).DataIndex;
+    usrslct(p).linenum = lnnum;
 
-    % Get (point) manually
-    data = [slct(lnnum).data{:,2}];
-    usrslct(p).point = data(:,cinfo(p).DataIndex);
+    % DataIndex .(index) and from cursor info if available. Else find it
+    % from cursor info .(Position).
+    if isfield(cinfo, 'DataIndex')
+        usrslct(p).index = cinfo(p).DataIndex;
+    else
+        usrslct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
+    end
+
+    % Get .(point) manually
+    usrslct(p).point = ind2pnt(cinfo(p).Target, slct(lnnum).data{:,2}, usrslct(p).index);
 end
 
 % Call the user's function and pass arguments through
@@ -1034,7 +1071,7 @@ s = [slct.xplobj] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
 
 % Get data point
-pnt = data2pnt(eobj.Target, slct(s).data(:,2), ind);
+pnt = ind2pnt(eobj.Target, slct(s).data(:,2), ind);
 
 % Make string of data to display
 str = cell(1,length(slct(s).data));
