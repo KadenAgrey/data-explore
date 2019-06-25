@@ -97,8 +97,7 @@ in.addParameter('SelectionLinkAxes',true); % link selected points accross all se
 % in.addParameter('SelectionPerLine', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionPerAxes', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionProperties', []); % properties of selection marker
-% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow
-% manual entry of data into display boxes (will be passed to push buttons)
+% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons)
 
 in.parse(fig, pbtnfcn, varargin{:})
 
@@ -658,31 +657,48 @@ end
 
 end
 
-function [] = data2pnt(data, ind)
+function [pnt] = data2pnt(line, data, ind)
 % Converts linear indices into the corresponding data point. This function
 % accounts for gridded data. If the data are from a mesh grid object
 % (surface or volumetric) then x, y, and z may be given as vectors. If this
 % is the case it's assumed this spatial information comes first, and that
 % the first non-vector data is the levels.
 
-isvec = cellfun(@(C) isvector(C),data);
-% ismat = cellfun(@(C) ismatrix(C),data);
-if ~all(isvec) || ~all(ismat)
-    levi = find(~isvec,1); % index of 'level' data
-    if levi < 3
-        [s(1), s(2)] = ind2sub(size(data{levi}), ind);
-    else
-        [s(1), s(2), s(3)] = ind2sub(size(data{levi}), ind);
-    end
+pnt = zeros(1,length(data)); % holds the point to return
+
+% If the line doesn't use meshgrids then ind applies directly and we return
+% early.
+if ~any(strcmp(line.Type, {'contour', 'surface'}))
+    pnt = cellfun(@(C) C(ind), data);
+    return;
 end
 
-pnt = zeros(length(data));
-for p = 1:length(data)
-    if isvec(p)
-        pnt(p) = data{p}(
+% If there is potential for gridded data then we need to check whether
+% spatial information is gridded or still a vector. In either case we will
+% return a vector with an index for each entry in <data>.
+isvec = cellfun(@(C) isvector(C),data);
+if any(isvec)
+% The spatial data is in vector form. Note that this assumes the user
+% provides only data with the same dimensions as the level data.
+    % Get subscript indices of point to return.
+    levi = find(~isvec,1); % index of 'level' data
+    sub = zeros(1,length(data));
+    if levi < 4
+        [sub(1), sub(2)] = ind2sub(size(data{levi}), ind);
     else
-        
+        [sub(1), sub(2), sub(3)] = ind2sub(size(data{levi}), ind);
     end
+    sub(levi:end) = ind;
+
+else
+% The spatial data is in matrix form. Note that this assumes the user
+% provides only data with the same dimensions as the level data.
+    sub = zeros(1,length(data));
+    sub(:) = ind;
+end
+
+for p = 1:length(data)
+    pnt(p) = data{p}(sub(p));
 end
 
 end
@@ -1018,20 +1034,20 @@ s = [slct.xplobj] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
 
 % Get data point
-pnt = data2pnt(slct(s).data(:,2), ind);
+pnt = data2pnt(eobj.Target, slct(s).data(:,2), ind);
 
 % Make string of data to display
 str = cell(1,length(slct(s).data));
 try % >= 20XXx
     ui.dcm.Interpreter;
     for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(slct(s).data{d,2}(ind),4) '}}'];
+        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
     end
 catch % <= 20XXx
     pdtobj.TextColor = [0.3 0.6 0.3];
     pdtobj.FontWeight = 'bold';
     for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' ' num2str(slct(s).data{d,2}(ind),4)];
+        str{d} = [slct(s).data{d,1} ' ' num2str(pnt(d),4)];
     end
 end
 
