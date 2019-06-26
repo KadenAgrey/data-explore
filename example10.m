@@ -5,6 +5,7 @@ fig = figure;
 fig.Position(3) = fig.Position(3)*2;
 subplot(1,2,1)
 surf(160*membrane(1,100), 'EdgeColor','none');
+axis tight
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
@@ -12,6 +13,7 @@ zlabel('z')
 
 subplot(1,2,2)
 contourf(160*membrane(1,100), 'EdgeColor','none');
+axis tight
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
