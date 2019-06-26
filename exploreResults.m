@@ -591,24 +591,31 @@ mode.KeyPressFcn{4} = lnkdt;
 end
 
 % --- Makers --- %
-function [dc] = makeDataCursor(dcm, target, ind, properties)
- 
+function [dt] = makeDataCursor(dcm, target, ind, properties)
+
 % Get the cursor position in data units
-x = target.XData(ind);
-y = target.YData(ind);
-%     if ~isempty(target.ZData)
-%         z = target.ZData(ind);
-%     else
-%         z = 1;
-%     end
+if isempty(target.ZData)
+    % Reconsider doing things this way, it requires constructing a cell 
+    % array out of the plot data. Alternative: write a function to do the
+    % same thing as ind2pnt but using target data instead of a cell array.
+    pnt = ind2pnt(target, {target.XData, target.YData}, ind);
+else
+    pnt = ind2pnt(target, {target.XData, target.YData, target.ZData}, ind);
+end
 
 % Get cursor position in pixels
 units = get( target.Parent, 'Units' ); % store fig units
 set( target.Parent, 'Units', 'pixels' ); % set to pixels
-[figpnt(1), figpnt(2)] = data2fig(target.Parent, x, y); % get position
+figpnt = data2fig(target.Parent, pnt); % get position
 set( target.Parent, 'Units', units ); % % reset units
 
-dc = dcm.createDatatip(target, figpnt);
+dt = dcm.createDatatip(target, figpnt);
+
+% Sometimes the wrong point is selected (probably due rounding in 
+% createDatatip), so we need to correct this using increment functions. 
+% This should never need to increment very many steps, unless the grid is 
+% extremely fine compared to the figure size.
+incrementCursorToIndex(dt.Cursor, ind);
 
 % % Create a copy of the context menu for the datatip:
 % set(dc,'UIContextMenu',dcm.UIContextMenu);
@@ -671,7 +678,7 @@ end
 
 function [pnt] = ind2pnt(line, data, ind)
 % Converts linear indices into the corresponding data point. This function
-% accounts for gridded data. If the data are from a mesh grid object
+% accounts for gridded data. If the data are from a meshgrid object
 % (surface or volumetric) then x, y, and z may be given as vectors. If this
 % is the case it's assumed this spatial information comes first, and that
 % the first non-vector data is the levels.
@@ -696,9 +703,9 @@ if any(isvec)
     levi = find(~isvec,1); % index of 'level' data
     sub = zeros(1,length(data));
     if levi < 4
-        [sub(1), sub(2)] = ind2sub(size(data{levi}), ind);
+        [sub(2), sub(1)] = ind2sub(size(data{levi}), ind);
     else
-        [sub(1), sub(2), sub(3)] = ind2sub(size(data{levi}), ind);
+        [sub(2), sub(1), sub(3)] = ind2sub(size(data{levi}), ind);
     end
     sub(levi:end) = ind;
 
@@ -746,15 +753,15 @@ end
 
 end
 
-function [xf, yf] = data2fig(ax, x, y)
+function [pntf] = data2fig(ax, pnt)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
- 
+
 pos = ax.Position;
- 
-xf = pos(1) + pos(3)*(x - ax.XLim(1))/diff(ax.XLim);
-yf = pos(2) + pos(4)*(y - ax.YLim(1))/diff(ax.YLim);
- 
+
+pntf(1) = pos(1) + pos(3)*(pnt(1) - ax.XLim(1))/diff(ax.XLim);
+pntf(2) = pos(2) + pos(4)*(pnt(2) - ax.YLim(1))/diff(ax.YLim);
+
 end
 
 function [] = rmCursors(~, ~, dcm, dc)
@@ -792,19 +799,33 @@ function [] = mvCursors(~,~, dc, curcur)
 
 ind = curcur.DataIndex;
 for c = dc(:)'
-    x = c.DataSource.XData(ind);
-    y = c.DataSource.YData(ind);
-    if ~isempty(c.DataSource.ZData)
-        z = c.DataSource.ZData(ind);
+    if c.DataIndex == ind
+    % If the index hasn't changed then we don't need to move this tip.
+        continue;
+    end
+
+    if isempty(c.DataSource.ZData)
+        % Reconsider doing things this way, it requires constructing a cell 
+        % array out of the plot data. Alternative: write a function to do the
+        % same thing as ind2pnt but using target data instead of a cell array.
+        pnt = ind2pnt(c.DataSource, {c.DataSource.XData, c.DataSource.YData}, ind);
+    else
+        pnt = ind2pnt(c.DataSource, {c.DataSource.XData, c.DataSource.YData, c.DataSource.ZData}, ind);
     end
 
     units = c.DataSource.Parent.Units;
     c.DataSource.Parent.Units = 'pixels';
 
-    [fx, fy] = data2fig(c.DataSource.Parent, x, y);
-    c.moveTo([fx, fy]);
+    figpnt = data2fig(c.DataSource.Parent, pnt);
+    c.moveTo(figpnt);
 
     c.DataSource.Parent.Units = units;
+
+    % Sometimes the wrong point is selected (probably due rounding in 
+    % createDatatip), so we need to correct this using increment functions. 
+    % This should never need to increment very many steps, unless the grid is 
+    % extremely fine compared to the figure size.
+    incrementCursorToIndex(c, ind);
 end
 
 end
@@ -864,6 +885,51 @@ if any(cind)
         end
     end
 
+end
+
+end
+
+function [] = incrementCursorToIndex(cursor, ind)
+% Increments data cursor to <ind>
+
+% If indices are already the same, return
+if cursor.DataIndex == ind
+    return;
+end
+
+target = cursor.DataSource;
+
+% Get the x and y indices
+if any(strcmp(target.Type, {'contour', 'surface'}))
+    [ytrue, xtrue] = ind2sub(size(target.ZData),ind);
+    [y, x] = ind2sub(size(target.ZData),cursor.DataIndex);
+else
+    xtrue = ind; 
+    ytrue = ind;
+    y = cursor.DataIndex;
+    x = ind; % it's not a grid, we only need to increment one dimension
+end
+
+% Get distance to increment
+dx = xtrue - x;
+dy = ytrue - y;
+
+% Increment tip set distance
+for inc = x:sign(dx):xtrue-sign(dx) % number of increments one less than abs(dx)
+    if dx < 0
+        direction = 'left';
+    else
+        direction = 'right';
+    end
+    cursor.increment(direction);
+end
+for inc = y:sign(dy):ytrue-sign(dx) % number of increments one less than abs(dy)
+    if dy < 0
+        direction = 'down';
+    else
+        direction = 'up';
+    end
+    cursor.increment(direction);
 end
 
 end
@@ -957,15 +1023,15 @@ if slctopt.SelectionLinkAxes && isAddRequest
     ind = ui.dcm.CurrentCursor.DataIndex;
 
     % Make Linked data tips
-    cinfo = getCursorInfo(ui.dcm);
+%     cinfo = getCursorInfo(ui.dcm);
     xlns = {slct.xplobj}; % explorable lines
-    clns = [cinfo.Target]; % cursor lines
-    % This tip will be overwritten, I just want to initialize with the correct data type
+    clns = {alldt.DataSource}; % cursor lines
     newdt = gobjects(0);
     for ln = xlns(~s)
-        n = clns==ln{1};
+        n = cellfun(@(C) C==ln{1}, clns);
+        cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
         % Are there no tips on ln or are the tips at different indices?
-        if all(~n) || all([cinfo(n).DataIndex] ~= ind)
+        if all(~n) || all(cindices ~= ind)
             newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln{1}, ind, []);
         end
     end
@@ -1035,9 +1101,7 @@ end
 % % Execute the specified callback function
 % hgfeval(newButtonUpFcn,hFig,evd);
 
-% If a tip was hit and selection type is normal continue.
-% Note: undocumented event property "HitObject"
-% isTipHit = strcmp(event.HitObject.Tag, 'PointTipLocator');
+% If selection type is normal continue.
 if ~strcmp(src.SelectionType,'normal')
     return;
 end
@@ -1067,12 +1131,19 @@ end
 if ~strcmp(event.Key, {'leftarrow','rightarrow','uparrow','downarrow'})
     return;
 end
+direction = event.Key(1:end-length('arrow'));
 
 % Get the current datatip
 curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
 
-% Ensure linked tips move with current tip
-mvLinkedTips(lnkdt, curdt)
+% Increment linked tips
+cind = cellfun(@(C) any(ismember(C, curdt)), lnkdt); % cell index of tips linked to curtip
+if any(cind)
+    rtind = lnkdt{cind} ~= curdt;
+    for c = [lnkdt{cind}(rtind).Cursor]
+        c.increment(direction); % move cursor with curtip
+    end
+end
 
 end
 
