@@ -89,7 +89,7 @@ in = inputParser(); % initialize parser object
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
 in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
 % Optional Positional
-in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
+in.addOptional('lines',getAllExplorableLines(fig)); % lines to select data points from
 % Optional Name/Value Pairs
 in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
@@ -121,7 +121,7 @@ slctopt_fields = {'SelectionLinkAxes'};
 % figure, text/edit boxes for each axes they are placed under etc.)
 
 % Get all axes parenting explorable lines
-xplr = struct('ax', [], 'ln', getExplorableLines(fig, in.Results.lines));
+xplr = struct('ax', [], 'ln', in.Results.lines);
 xplr.ax = getExplorableAx(fig, xplr.ln);
 
 % Initialize the struct to reference ui objects, this is passed to 
@@ -373,18 +373,14 @@ end
 
 %% --- Functions --- %%
 % --- Getters --- %
-function [lns] = getExplorableLines(fig, lns)
-% Gets axes for line/contours/surfaces etc. passed as arguments to
-% exploreResults and checks that they all belong to the figure <fig>.
+function [lines] = getAllExplorableLines(fig)
+% If lns is empty returns all axes children of explorable types as the
+% default behavior
 
-if isempty(lns)
-    ch = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar');
-    lns = gobjects(length(ch),1);
-    for c = 1:length(ch)
-        tmp = findobj(ch(c).Children, 'flat', '-not', 'Type', 'text');
-        lns(c) = tmp(end);
-    end
-end
+ch = findobj(fig.Children, 'flat', 'Type', 'axes', '-or', ...
+                                   'Type', 'polaraxes', '-or', ...
+                                   'Type', 'geoaxes');
+lines = findobj([ch.Children], 'flat', '-not', {'Type', 'text', '-or', 'Type', 'light'});
 
 end
 
