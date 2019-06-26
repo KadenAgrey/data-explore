@@ -727,7 +727,7 @@ function [ind] = pnt2ind(line, pnt)
 % point. Will always return the linear index matching the ZData, even if X
 % and Y are vectors.
 
-if strcmp(line.Type, {'contour', 'surface'})
+if any(strcmp(line.Type, {'contour', 'surface'}))
 % Data is a grid
     % We must search the X and Y data for subscripts because ZData may not 
     % be unique.
@@ -745,7 +745,7 @@ if strcmp(line.Type, {'contour', 'surface'})
     end
 
     % Convert to linear index
-    ind = sub2ind(size(line.ZData),[y x]);
+    ind = sub2ind(size(line.ZData),y,x);
 else
 % Data is a 1D sequence.
     ind = find(line.XData == pnt(1), 1);
