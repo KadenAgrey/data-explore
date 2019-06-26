@@ -923,7 +923,7 @@ for inc = x:sign(dx):xtrue-sign(dx) % number of increments one less than abs(dx)
     end
     cursor.increment(direction);
 end
-for inc = y:sign(dy):ytrue-sign(dx) % number of increments one less than abs(dy)
+for inc = y:sign(dy):ytrue-sign(dy) % number of increments one less than abs(dy)
     if dy < 0
         direction = 'down';
     else
