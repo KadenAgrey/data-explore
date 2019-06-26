@@ -895,7 +895,7 @@ for p = 1:length(cinfo)
     end
 
     % Get .(point) manually
-    usrslct(p).point = ind2pnt(cinfo(p).Target, slct(lnnum).data{:,2}, usrslct(p).index);
+    usrslct(p).point = ind2pnt(cinfo(p).Target, slct(lnnum).data(:,2), usrslct(p).index);
 end
 
 % Call the user's function and pass arguments through
