@@ -18,7 +18,7 @@ phrase = 'Display Me!'; % just an argument for the example function
 pbtn_callback = {'User Function', @ userCallback, phrase};
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, cnt, 'DataBoxFromAxes', true, 'SelectionLinkAxes', false );
+exploreResults( mainfig, pbtn_callback, cnt, 'DataFromAxes', true, 'SelectionLinkAxes', false );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, phrase)

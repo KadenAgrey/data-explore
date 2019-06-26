@@ -144,14 +144,26 @@ slct = struct('xplobj', [], 'data', []);
 for p = 1:length(xplr.ln)
     slct(p).xplobj = xplr.ln(p);
 
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ugly
+    % Get labels. If a label is empty use x,y,z as default.
+    lab = {'x', 'y', 'z'};
+    if ~isempty(slct(p).xplobj.Parent.XLabel.String)
+        lab{1} = slct(p).xplobj.Parent.XLabel.String;
+    end
+    if ~isempty(slct(p).xplobj.Parent.YLabel.String)
+        lab{2} = slct(p).xplobj.Parent.YLabel.String;
+    end
+    if ~isempty(slct(p).xplobj.Parent.ZLabel.String)
+        lab{3} = slct(p).xplobj.Parent.ZLabel.String;
+    end
+
+    % Construct data cell
     if isempty(slct(p).xplobj.ZData)
-        slct(p).data = {slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
-                        slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData};
+        slct(p).data = {lab{1}, slct(p).xplobj.XData; ...
+                        lab{2}, slct(p).xplobj.YData};
     else
-        slct(p).data = {slct(p).xplobj.Parent.XLabel.String, slct(p).xplobj.XData; ...
-                        slct(p).xplobj.Parent.YLabel.String, slct(p).xplobj.YData; ...
-                        slct(p).xplobj.Parent.ZLabel.String, slct(p).xplobj.ZData};
+        slct(p).data = {lab{1}, slct(p).xplobj.XData; ...
+                        lab{2}, slct(p).xplobj.YData; ...
+                        lab{3}, slct(p).xplobj.ZData};
     end
     slct(p).data = [slct(p).data; user_data{p}];
 end
