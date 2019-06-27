@@ -38,7 +38,7 @@ end
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 cutoff = 1; % just an argument for the example function
-pbtn_callback = {'User Function', @ userCallback, lines2(1), [], cutoff, []};
+pbtn_callback = {'User Function', @ userCallback, [], [], cutoff, []};
 
 % Finally launch the ui figure
 exploreResults( mainfig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkAxes', true );
@@ -52,35 +52,35 @@ function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, n
 % I recomend placing a breakpoint in here and running the script to take a
 % look at the structure of the arguments passed to this function
 
-ind = slct(1).index; % for this case all indices should be the same
-
-% --- Do something for fun --- %
-if ~isempty(extrapnt) && isvalid(extrapnt)
-    delete(extrapnt);
-end
-% Place a marker on the selected axes
-extrapnt = line(ln.XData(ind), ln.YData(ind), 'LineStyle', 'none', 'Marker', '+', 'MarkerSize', 10);
-
-% If this point on the third plot is below the cutoff
-if abs(ui.xpl(3).data{2,2}(ind)) < cutoff
-    if ~isempty(newfig) && isvalid(newfig)
-        close(newfig);
-    end
-    newfig = figure;
-    surf(160*membrane(1,100), 'EdgeColor', 'none');
-    axis tight
-else
-    disp(['Cutoff is ' num2str(cutoff)])
-end
-
-% --------------------------- %
-
-% We can optionally update the arguments for this callback like so. The 
-% user data should be organized in a cell array as with the initial call to
-% exploreResults. The first three arguments to the callback are set by 
-% exploreResults and normally don't need to be editted here.+
-
-user_args = {@ userCallback, ln, extrapnt, cutoff, newfig};
-src.Callback{end} = user_args;
+% ind = slct(1).index; % for this case all indices should be the same
+% 
+% % --- Do something for fun --- %
+% if ~isempty(extrapnt) && isvalid(extrapnt)
+%     delete(extrapnt);
+% end
+% % Place a marker on the selected axes
+% extrapnt = line(ln.XData(ind), ln.YData(ind), 'LineStyle', 'none', 'Marker', '+', 'MarkerSize', 10);
+% 
+% % If this point on the third plot is below the cutoff
+% if abs(ui.xpl(3).data{2,2}(ind)) < cutoff
+%     if ~isempty(newfig) && isvalid(newfig)
+%         close(newfig);
+%     end
+%     newfig = figure;
+%     surf(160*membrane(1,100), 'EdgeColor', 'none');
+%     axis tight
+% else
+%     disp(['Cutoff is ' num2str(cutoff)])
+% end
+% 
+% % --------------------------- %
+% 
+% % We can optionally update the arguments for this callback like so. The 
+% % user data should be organized in a cell array as with the initial call to
+% % exploreResults. The first three arguments to the callback are set by 
+% % exploreResults and normally don't need to be editted here.+
+% 
+% user_args = {@ userCallback, ln, extrapnt, cutoff, newfig};
+% src.Callback{end} = user_args;
 
 end
