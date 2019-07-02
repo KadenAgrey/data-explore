@@ -753,77 +753,92 @@ function [pntf] = data2fig(ax, pnt)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
 
-% Get direction vector of camera
-[n(1), n(2), n(3)] = sph2cart(ax.View(1),ax.View(2),1);
+% Data normalization factor
+dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
 
-% Check if data is 3D
-is3D = false;
-if ~isempty(ax.ZData)
-    is3D = true;
-end
-
-% Normalize pnt by axes limits ---------------
-pnt = pnt./abs( [diff(ax.XLim) diff(ax.YLim) diff(ax.ZLim)] );
-
-
-
-
-% Get plot-frame intersects of mouse
-pos = ax.CurrentPoint;
-
-% Normalize by axes limits before search
-xn = abs( diff(ax.XLim) );
-x = slct(n).xplobj.XData/xn; 
-
-yn = abs( diff(ax.YLim) );
-y = slct(n).xplobj.YData/yn;
-
-zn = abs( diff(ax.ZLim) );
-z = slct(n).xplobj.ZData/zn; 
-
-pos = pos./[xn yn zn; xn yn zn];
-posln = (pos(2,:)-pos(1,:))./norm(pos(2,:)-pos(1,:)); % line through both intersects
-
-% 'contour' and 'surface' plots may have gridded data
-if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
-    % In this case 'z' will always be gridded, 'x' and 'y' may not
-    if isvector(x)
-        [x, y] = meshgrid(x, y);
-    end
-end
-
-x = x(:);
-y = y(:);
-z = z(:);
-
-% Find nearest data point - certain plot types are treated differently
-if ~is3D
-    % 2D: just find the point closest to the first intersection
-    ind = dsearchn( [ x, y ], pos(1,1:2) );
-
+% Get view transformation matrix
+if strcmp(ax.Projection, 'orthographic')
+    d2f = viewmtx(ax.View(1),ax.View(2));
 else
-    % 3D: find the point closest to the intersecting line
-    tol = 1e-3; % distance tolerance
-    nz = length(z);
-    %     If pos1 = pnt on line, posln = direction vector of line, xyz = point to find distance for
-    % dst = ||(pos1 - xyz) - ( (pos1 - xyz).posln )*posln||
-    xyz_d = sqrt(sum( ((pos(1,:) - [x, y, z]) - sum( (pos(1,:) - [x, y, z]).*repmat(posln,nz,1), 2 ).*repmat(posln,nz,1)).^2, 2));
-    ind = 1:nz;
-    ind = ind(ismembertol(xyz_d, min(xyz_d), tol));
-    % Of points that fit tol, choose the point closest to the screen
-    [~, ii] = min(norm(pos(1,:)' - [x(ind), y(ind), z(ind)]'));
-    ind = ind(ii);
-
+    d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
 end
 
-
-
-
+pnta = d2f*[pnt./dnorm 1]';
 
 pos = ax.Position;
+pntf = pos(1:2) + pos(3:4).*(pnta(1:2)'/pnta(4));
 
-pntf(1) = pos(1) + pos(3)*(pnt(1) - ax.XLim(1))/diff(ax.XLim);
-pntf(2) = pos(2) + pos(4)*(pnt(2) - ax.YLim(1))/diff(ax.YLim);
+% % Get direction vector of camera
+% [n(1), n(2), n(3)] = sph2cart(ax.View(1),ax.View(2),1);
+% 
+% % Check if data is 3D
+% is3D = false;
+% if ~isempty(ax.ZData)
+%     is3D = true;
+% end
+% 
+% % Normalize pnt by axes limits ---------------
+% pnt = pnt./abs( [diff(ax.XLim) diff(ax.YLim) diff(ax.ZLim)] );
+% 
+% 
+
+
+% % Get plot-frame intersects of mouse
+% pos = ax.CurrentPoint;
+% 
+% % Normalize by axes limits before search
+% xn = abs( diff(ax.XLim) );
+% x = slct(n).xplobj.XData/xn; 
+% 
+% yn = abs( diff(ax.YLim) );
+% y = slct(n).xplobj.YData/yn;
+% 
+% zn = abs( diff(ax.ZLim) );
+% z = slct(n).xplobj.ZData/zn; 
+% 
+% pos = pos./[xn yn zn; xn yn zn];
+% posln = (pos(2,:)-pos(1,:))./norm(pos(2,:)-pos(1,:)); % line through both intersects
+% 
+% % 'contour' and 'surface' plots may have gridded data
+% if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
+%     % In this case 'z' will always be gridded, 'x' and 'y' may not
+%     if isvector(x)
+%         [x, y] = meshgrid(x, y);
+%     end
+% end
+% 
+% x = x(:);
+% y = y(:);
+% z = z(:);
+% 
+% % Find nearest data point - certain plot types are treated differently
+% if ~is3D
+%     % 2D: just find the point closest to the first intersection
+%     ind = dsearchn( [ x, y ], pos(1,1:2) );
+% 
+% else
+%     % 3D: find the point closest to the intersecting line
+%     tol = 1e-3; % distance tolerance
+%     nz = length(z);
+%     %     If pos1 = pnt on line, posln = direction vector of line, xyz = point to find distance for
+%     % dst = ||(pos1 - xyz) - ( (pos1 - xyz).posln )*posln||
+%     xyz_d = sqrt(sum( ((pos(1,:) - [x, y, z]) - sum( (pos(1,:) - [x, y, z]).*repmat(posln,nz,1), 2 ).*repmat(posln,nz,1)).^2, 2));
+%     ind = 1:nz;
+%     ind = ind(ismembertol(xyz_d, min(xyz_d), tol));
+%     % Of points that fit tol, choose the point closest to the screen
+%     [~, ii] = min(norm(pos(1,:)' - [x(ind), y(ind), z(ind)]'));
+%     ind = ind(ii);
+% 
+% end
+% 
+% 
+% 
+% 
+% 
+% pos = ax.Position;
+% 
+% pntf(1) = pos(1) + pos(3)*(pnt(1) - ax.XLim(1))/diff(ax.XLim);
+% pntf(2) = pos(2) + pos(4)*(pnt(2) - ax.YLim(1))/diff(ax.YLim);
 
 end
 
