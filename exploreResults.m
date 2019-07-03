@@ -756,30 +756,46 @@ function [pntf] = data2fig(ax, pnt)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
 
-% Using third party functions
+% Using third party functions - as a comparison
 %   This works, but not perfectly. It's still close enough to use the
 %   increment function.
 % [pntf(1), pntf(2)] = ds2fig(ax, pnt(1), pnt(2), pnt(3));
 % pntf = pntf.*ax.Parent.Position(3:4);
 % return;
 
-% Data normalization factor
-dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
-
-% Translate point and normalize so that it exists within a unit cube
-pnt = (pnt - [ax.XLim(1), ax.YLim(1), ax.ZLim(1)])./dnorm;
+% Get bounding box of projection from axis limits
+box3D = [ax.XLim(1), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(1), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(1), 1;]';
 
 % Get view transformation matrix
 if strcmp(ax.Projection, 'orthographic')
     d2f = viewmtx(ax.View(1),ax.View(2));
 else
+    dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
     d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
 end
-% d2f = view(ax); % this only works without the 'ax' argument.
-pnta = d2f*[pnt 1]';
 
+% Transform bounding box to 2D space
+box3DTrans = d2f*box3D;
+box3DTrans(1:3,:) = box3DTrans(1:3,:)./box3DTrans(4,:);
+% Each column is a pair of 2D axis limits so that [xlim,ylim]
+box2D = [min(box3DTrans(1:2,:),[],2), max(box3DTrans(1:2,:),[],2)]';
+% Correct by the plot box aspect ratio
+
+
+% Get pnt in 2D space
+pnt2D = d2f*[pnt 1]';
+
+% Convert to figure space
 pos = ax.Position;
-pntf = pos(1:2) + pos(3:4).*(pnta(1:2)'/pnta(4));
+pntax = ( (pnt2D(1:2)'/pnt2D(4) - box2D(1,:))./diff(box2D) ); % position of point normalized to 2D plot box
+pntf = pos(1:2) + pos(3:4).*pntax;
 
 % % Get direction vector of camera
 % [n(1), n(2), n(3)] = sph2cart(ax.View(1),ax.View(2),1);
