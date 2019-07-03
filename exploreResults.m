@@ -602,8 +602,11 @@ end
 % Get cursor position in pixels
 units = get( target.Parent, 'Units' ); % store fig units
 set( target.Parent, 'Units', 'pixels' ); % set to pixels
+unitsfig = get(ancestor(target, 'figure'), 'Units');
+set(ancestor(target, 'figure'), 'Units', 'pixels');
 figpnt = data2fig(target.Parent, pnt); % get position
 set( target.Parent, 'Units', units ); % % reset units
+set(ancestor(target, 'figure'), 'Units', unitsfig);
 
 dt = dcm.createDatatip(target, figpnt);
 
@@ -753,8 +756,18 @@ function [pntf] = data2fig(ax, pnt)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
 
+% Using third party functions
+%   This works, but not perfectly. It's still close enough to use the
+%   increment function.
+% [pntf(1), pntf(2)] = ds2fig(ax, pnt(1), pnt(2), pnt(3));
+% pntf = pntf.*ax.Parent.Position(3:4);
+% return;
+
 % Data normalization factor
 dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
+
+% Translate point and normalize so that it exists within a unit cube
+pnt = (pnt - [ax.XLim(1), ax.YLim(1), ax.ZLim(1)])./dnorm;
 
 % Get view transformation matrix
 if strcmp(ax.Projection, 'orthographic')
@@ -762,8 +775,8 @@ if strcmp(ax.Projection, 'orthographic')
 else
     d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
 end
-
-pnta = d2f*[pnt./dnorm 1]';
+% d2f = view(ax); % this only works without the 'ax' argument.
+pnta = d2f*[pnt 1]';
 
 pos = ax.Position;
 pntf = pos(1:2) + pos(3:4).*(pnta(1:2)'/pnta(4));
@@ -893,11 +906,14 @@ for c = dc(:)'
 
     units = c.DataSource.Parent.Units;
     c.DataSource.Parent.Units = 'pixels';
+    unitsfig = get(ancestor(c.DataSource, 'figure'), 'Units');
+    set(ancestor(c.DataSource, 'figure'), 'Units', 'pixels');
 
     figpnt = data2fig(c.DataSource.Parent, pnt);
     c.moveTo(figpnt);
 
     c.DataSource.Parent.Units = units;
+    set(ancestor(c.DataSource, 'figure'), 'Units', unitsfig);
 
     % Sometimes the wrong point is selected (probably due rounding in 
     % createDatatip), so we need to correct this using increment functions. 
