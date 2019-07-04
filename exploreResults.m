@@ -755,48 +755,6 @@ end
 function [pntf] = data2fig(ax, pnt)
 % Converts data coordinates (<x> and <y>) on an axes to equivalent
 % coordinates in the figure with the same units as <ax>.
-
-% Using third party functions - as a comparison
-%   This works, but not perfectly. It's still close enough to use the
-%   increment function.
-% [pntf(1), pntf(2)] = ds2fig(ax, pnt(1), pnt(2), pnt(3));
-% pntf = pntf.*ax.Parent.Position(3:4);
-% return;
-
-% Get bounding box of projection from axis limits
-box3D = [ax.XLim(1), ax.YLim(1), ax.ZLim(1), 1; ...
-         ax.XLim(1), ax.YLim(1), ax.ZLim(2), 1; ...
-         ax.XLim(1), ax.YLim(2), ax.ZLim(1), 1; ...
-         ax.XLim(2), ax.YLim(1), ax.ZLim(1), 1; ...
-         ax.XLim(2), ax.YLim(2), ax.ZLim(2), 1; ...
-         ax.XLim(1), ax.YLim(2), ax.ZLim(2), 1; ...
-         ax.XLim(2), ax.YLim(1), ax.ZLim(2), 1; ...
-         ax.XLim(2), ax.YLim(2), ax.ZLim(1), 1;]';
-
-% Get view transformation matrix
-if strcmp(ax.Projection, 'orthographic')
-    d2f = viewmtx(ax.View(1),ax.View(2));
-else
-    dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
-    d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
-end
-
-% Transform bounding box to 2D space
-box3DTrans = d2f*box3D;
-box3DTrans(1:3,:) = box3DTrans(1:3,:)./box3DTrans(4,:);
-% Each column is a pair of 2D axis limits so that [xlim,ylim]
-box2D = [min(box3DTrans(1:2,:),[],2), max(box3DTrans(1:2,:),[],2)]';
-% Correct by the plot box aspect ratio
-
-
-% Get pnt in 2D space
-pnt2D = d2f*[pnt 1]';
-
-% Convert to figure space
-pos = ax.Position;
-pntax = ( (pnt2D(1:2)'/pnt2D(4) - box2D(1,:))./diff(box2D) ); % position of point normalized to 2D plot box
-pntf = pos(1:2) + pos(3:4).*pntax;
-
 % % Get direction vector of camera
 % [n(1), n(2), n(3)] = sph2cart(ax.View(1),ax.View(2),1);
 % 
@@ -810,8 +768,7 @@ pntf = pos(1:2) + pos(3:4).*pntax;
 % pnt = pnt./abs( [diff(ax.XLim) diff(ax.YLim) diff(ax.ZLim)] );
 % 
 % 
-
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % % Get plot-frame intersects of mouse
 % pos = ax.CurrentPoint;
 % 
@@ -859,15 +816,68 @@ pntf = pos(1:2) + pos(3:4).*pntax;
 %     ind = ind(ii);
 % 
 % end
-% 
-% 
-% 
-% 
-% 
-% pos = ax.Position;
-% 
-% pntf(1) = pos(1) + pos(3)*(pnt(1) - ax.XLim(1))/diff(ax.XLim);
-% pntf(2) = pos(2) + pos(4)*(pnt(2) - ax.YLim(1))/diff(ax.YLim);
+
+% Using third party functions - as a comparison
+%   This works, but not perfectly. It's still close enough to use the
+%   increment function.
+% [pntf(1), pntf(2)] = ds2fig(ax, pnt(1), pnt(2), pnt(3));
+% pntf = pntf.*ax.Parent.Position(3:4);
+% return;
+
+% Get bounding box of projection from axis limits. We will project this
+% into our 2D data space to get the 2D axis limits.
+box3D = [ax.XLim(1), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(1), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(1), 1;]';
+
+% Axis stretching is accounted for with PlotBoxAspectRatio.
+pScl = [ax.PlotBoxAspectRatio, 1]';
+
+% Get view transformation matrix. This will project our 3D data into 2D
+% space.
+if strcmp(ax.Projection, 'orthographic')
+% Orthographic project is used
+    d2f = viewmtx(ax.View(1),ax.View(2));
+else
+% Perspective projection is used
+    dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
+    d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
+end
+
+% Transform bounding box to 2D space
+% We scale the 3D box by the PlotBoxAspectRatio then transform it to the 2D
+% space. The same procedure will be followed for the pnt.
+box3DTrans = d2f*( box3D./pScl );
+box3DTrans(1:3,:) = box3DTrans(1:3,:)./box3DTrans(4,:); % scale by the homogenous vector for perspective projection
+% Each column of box2D is a pair of 2D axis limits so that 
+% box2D = [xlim_lo, ylim_lo; xlim_hi, ylim_hi]
+box2D = [min(box3DTrans(1:2,:),[],2), max(box3DTrans(1:2,:),[],2)]';
+
+% Get pnt in 2D space
+% We add the 1 to account for the homogenous vector, then scale as with
+% box3D and transform the point to 2D space. The third element of pnt2D is
+% effectively a measure of "depth" into the screen.
+pnt2D = d2f*( [pnt 1]'./pScl );
+
+% Convert to figure space
+pos = ax.Position;
+
+% Account for the 2D box aspect ratio not filling the position rectangle.
+boxAR = diff(box2D(:,1))/diff(box2D(:,2));
+posAR = pos(3)/pos(4);
+if posAR < boxAR
+    
+elseif posAR > boxAR
+    
+end
+
+pntax = ( (pnt2D(1:2)'/pnt2D(4) - box2D(1,:))./diff(box2D) ); % position of point normalized to 2D plot box
+pntf = pos(1:2) + pos(3:4).*pntax;
 
 end
 
