@@ -837,6 +837,7 @@ box3D = [ax.XLim(1), ax.YLim(1), ax.ZLim(1), 1; ...
 
 % Axis stretching is accounted for with PlotBoxAspectRatio.
 pScl = [ax.PlotBoxAspectRatio, 1]';
+% pScl = [1 1 1 1]';
 
 % Get view transformation matrix. This will project our 3D data into 2D
 % space.
@@ -870,10 +871,16 @@ pos = ax.Position;
 % Account for the 2D box aspect ratio not filling the position rectangle.
 boxAR = diff(box2D(:,1))/diff(box2D(:,2));
 posAR = pos(3)/pos(4);
-if posAR < boxAR
-    
-elseif posAR > boxAR
-    
+if strcmp(ax.PlotBoxAspectRatioMode, 'manual') && posAR < boxAR
+% Adjust y-pos
+    d = pos(4) - pos(3)/boxAR;
+    pos(2) = pos(2) + d/2;
+    pos(4) = pos(4) - d;
+elseif strcmp(ax.PlotBoxAspectRatioMode, 'manual') && posAR > boxAR
+% Adjust x-pos
+    d = pos(3) - pos(4)*boxAR;
+    pos(1) = pos(1) + d/2;
+    pos(3) = pos(3) - d;
 end
 
 pntax = ( (pnt2D(1:2)'/pnt2D(4) - box2D(1,:))./diff(box2D) ); % position of point normalized to 2D plot box
