@@ -9,13 +9,15 @@ title('Surf Plot')
 xlabel('x')
 ylabel('y')
 zlabel('z')
+axis square
 
 subplot(1,2,2)
-surf(160*membrane(1,100), 'EdgeColor','none');
+surf(300*membrane(1,100), 'EdgeColor','none');
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
 zlabel('z')
+axis equal
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
