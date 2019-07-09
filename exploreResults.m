@@ -1106,6 +1106,17 @@ for p = 1:length(cinfo)
     usrslct(p).point = ind2pnt(cinfo(p).Target, slct(lnnum).data(:,2), usrslct(p).index);
 end
 
+% Get links
+if opt.SelectionLinkAxes
+    finished = false(1,length(usrslct));
+    inds = 1:length(usrslct);
+    for p = inds
+        if ~finished(p)
+            % Find tips linked to usrslct(p)
+        end
+    end
+end
+
 % Call the user's function and pass arguments through
 usrcall{1}( src, event, usrobj, usrslct, usrcall{2:end} );
 
