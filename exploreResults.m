@@ -602,11 +602,8 @@ end
 % Get cursor position in pixels
 units = get( target.Parent, 'Units' ); % store fig units
 set( target.Parent, 'Units', 'pixels' ); % set to pixels
-unitsfig = get(ancestor(target, 'figure'), 'Units');
-set(ancestor(target, 'figure'), 'Units', 'pixels');
 figpnt = data2fig(target.Parent, pnt); % get position
 set( target.Parent, 'Units', units ); % % reset units
-set(ancestor(target, 'figure'), 'Units', unitsfig);
 
 dt = dcm.createDatatip(target, figpnt);
 
@@ -1160,20 +1157,19 @@ end
 % Link Axes
 if slctopt.SelectionLinkAxes && isAddRequest
     % Get index of selected object and point
-    s = arrayfun( @(S) isequal(S.xplobj, ui.dcm.CurrentCursor.DataSource), slct );
+    xlns = [slct.xplobj];
+    s = xlns == ui.dcm.CurrentCursor.DataSource;
     ind = ui.dcm.CurrentCursor.DataIndex;
 
     % Make Linked data tips
-%     cinfo = getCursorInfo(ui.dcm);
-    xlns = {slct.xplobj}; % explorable lines
-    clns = {alldt.DataSource}; % cursor lines
+    clns = [alldt.DataSource]; % cursor lines
     newdt = gobjects(0);
     for ln = xlns(~s)
-        n = cellfun(@(C) C==ln{1}, clns);
+        n = clns == ln;
         cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
         % Are there no tips on ln or are the tips at different indices?
         if all(~n) || all(cindices ~= ind)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln{1}, ind, []);
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
         end
     end
     alldt = [alldt; newdt'];
