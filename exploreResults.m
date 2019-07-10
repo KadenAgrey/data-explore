@@ -94,7 +94,7 @@ in.addOptional('lines',getAllExplorableLines(fig)); % lines to select data point
 in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
-% in.addParameter('SelectionPerLine', inf); % number of data points that can be selected per axes
+% in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionPerAxes', inf); % number of data points that can be selected per axes
 % in.addParameter('SelectionProperties', []); % properties of selection marker
 % in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons)
@@ -112,7 +112,7 @@ pbtn_abv_marg = 3; % [pixels] margin above PushButton
 % txtedt_h = 20*2; % [pixels] Text & Edit box height
 % txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
 slctopt_fields = {'SelectionLinkAxes'};
-% slctopt_fields = {'SelectionLinkAxes','SelectionPerLine',...
+% slctopt_fields = {'SelectionLinkAxes','SelectionPerChart',...
 %                   'SelectionPerAxes'};
 
 % Initialize xplr struct with figure objects and slct struct with graphics 
@@ -130,7 +130,7 @@ xplr.ax = getExplorableAx(fig, xplr.ln);
 %   ui.dcm holds the datacursormode object
 % Calling datacursormode here creates the mode object, whose default
 % functions we will change to add our own functionality.
-ui = struct('pbtn', [], 'dcm', datacursormode(fig));
+ui = struct('pbtn', [], 'dcm', datacursormode(fig), 'xpl', struct('chart', [], 'data', []));
 
 % Get objects selected points will be associated with. This is passed to
 % callbacks.
@@ -140,38 +140,37 @@ else
     user_data = in.Results.DataFromUser;
 end
 
-slct = struct('xplobj', [], 'data', []);
 for p = 1:length(xplr.ln)
-    slct(p).xplobj = xplr.ln(p);
+    ui.xpl(p).chart = xplr.ln(p);
 
     % Get labels. If a label is empty use x,y,z as default.
     lab = {'x', 'y', 'z'};
-    if ~isempty(slct(p).xplobj.Parent.XLabel.String)
-        lab{1} = slct(p).xplobj.Parent.XLabel.String;
+    if ~isempty(ui.xpl(p).chart.Parent.XLabel.String)
+        lab{1} = ui.xpl(p).chart.Parent.XLabel.String;
     end
-    if ~isempty(slct(p).xplobj.Parent.YLabel.String)
-        lab{2} = slct(p).xplobj.Parent.YLabel.String;
+    if ~isempty(ui.xpl(p).chart.Parent.YLabel.String)
+        lab{2} = ui.xpl(p).chart.Parent.YLabel.String;
     end
-    if ~isempty(slct(p).xplobj.Parent.ZLabel.String)
-        lab{3} = slct(p).xplobj.Parent.ZLabel.String;
+    if ~isempty(ui.xpl(p).chart.Parent.ZLabel.String)
+        lab{3} = ui.xpl(p).chart.Parent.ZLabel.String;
     end
 
     % Construct data cell
-    if isempty(slct(p).xplobj.ZData)
-        slct(p).data = {lab{1}, slct(p).xplobj.XData; ...
-                        lab{2}, slct(p).xplobj.YData};
+    if isempty(ui.xpl(p).chart.ZData)
+        ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                        lab{2}, ui.xpl(p).chart.YData};
     else
-        slct(p).data = {lab{1}, slct(p).xplobj.XData; ...
-                        lab{2}, slct(p).xplobj.YData; ...
-                        lab{3}, slct(p).xplobj.ZData};
+        ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                        lab{2}, ui.xpl(p).chart.YData; ...
+                        lab{3}, ui.xpl(p).chart.ZData};
     end
-    slct(p).data = [slct(p).data; user_data{p}];
+    ui.xpl(p).data = [ui.xpl(p).data; user_data{p}];
 end
 
 % Define a struct containing selection options to pass to the callbacks
-slctopt = struct();
+opt = struct();
 for f = slctopt_fields
-    slctopt.(f{:}) = in.Results.(f{:});
+    opt.(f{:}) = in.Results.(f{:});
 end
 
 %% --- Prepair Main Figure --- %%
@@ -337,16 +336,16 @@ end
 
 % Assign user callback functions to push buttons
 for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
+    ui.pbtn(pb).Callback = {@ pbtnCallback, in.Results.pbtnfcn(pb,2:end), ui, {}, opt};
 end
 
 % Assign listener to dcm 'Enable' property
-% plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, slct, slctopt, {}});
+% plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, opt, {}});
 
 % Assign default callbacks to dcmode
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 % Set button down function
-fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, {}, ui, slct, slctopt};
+fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, ui, {}, opt};
 dcmode.WindowButtonDownFcn = fcn;
 % Set button up function
 fcn = {@mvLinkedTipsButtonUp, dcmode.WindowButtonUpFcn, ui.dcm, {}};
@@ -360,7 +359,7 @@ dcmode.KeyPressFcn = fcn;
 % dcmode.ModeStopFcn = fcn;
 
 % Assign UpdateFcn to data cursor mode object
-ui.dcm.UpdateFcn = {@dcmUpdate, ui, slct};
+ui.dcm.UpdateFcn = {@dcmUpdate, ui};
 
 %% --- Finalize Figure Properties --- %%
 ui.dcm.Enable = 'on'; % turn data cursor mode on
@@ -536,7 +535,7 @@ function [lnkdt] = getLinkedTips(fig)
 
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 if ~isempty(dcmode)
-    lnkdt = dcmode.WindowButtonDownFcn{3};
+    lnkdt = dcmode.WindowButtonDownFcn{4};
 else % if the figure is being closed return an empty cell
     lnkdt = {};
 end
@@ -544,12 +543,12 @@ end
 end
 
 % --- Setters --- %
-function [] = setTipCallbacks(src, event, fig, ui, slct, slctopt, lnkdt)
+function [] = setTipCallbacks(src, event, fig, ui, opt, lnkdt)
 % Assign button down callbacks for figure window
 disableFigFcnListener(fig)
 
 % Set button down function
-wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, lnkdt, ui, slct, slctopt};
+wndwfcn = {@lnSelectPnt, fig.WindowButtonDownFcn, lnkdt, ui, opt};
 fig.WindowButtonDownFcn = wndwfcn;
 % Set button up function
 wndwfcn = {@mvLinkedTipsButtonUp, fig.WindowButtonUpFcn, ui.dcm, lnkdt};
@@ -560,19 +559,20 @@ fig.KeyPressFcn = wndwfcn;
 
 end
 
-function [] = setLinkedTips(fig, lnkdt)
+function [] = setLinkedTips(fig, pbtn, lnkdt)
 % Update lnkdt argument in figure and mode callbacks
 
 setLinkedTipsFig(fig, lnkdt);
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 setLinkedTipsMode(dcmode, lnkdt);
+setLinkedTipsButton(pbtn, lnkdt);
 
 end
 
 function [] = setLinkedTipsFig(fig, lnkdt)
 
 disableFigFcnListener(fig)
-fig.WindowButtonDownFcn{end}{3} = lnkdt;
+fig.WindowButtonDownFcn{end}{4} = lnkdt;
 fig.WindowButtonUpFcn{end}{4} = lnkdt;
 fig.KeyPressFcn{end}{4} = lnkdt;
 
@@ -580,9 +580,17 @@ end
 
 function [] = setLinkedTipsMode(mode, lnkdt)
 
-mode.WindowButtonDownFcn{3} = lnkdt;
+mode.WindowButtonDownFcn{4} = lnkdt;
 mode.WindowButtonUpFcn{4} = lnkdt;
 mode.KeyPressFcn{4} = lnkdt;
+
+end
+
+function [] = setLinkedTipsButton(pbtn, lnkdt)
+
+for p = pbtn
+    p.Callback{4} = lnkdt;
+end
 
 end
 
@@ -990,24 +998,24 @@ if any(cind)
     % Find which xplobj's have been used
     xplUsed = false(length(xplobj),1);
     for m = 1:length(xplobj)
-        x = xplobj(m);
+        X = xplobj(m);
 
         for S = Sources
-            if x{1} == S{1}
+            if X == S{1}
                 xplUsed(m) = true;
                 break;
             end
         end
     end
 
-    curxpl = cellfun(@(C) isequal(C, cursrc), xplobj); % current xplobj
+    curxpl = xplobj == cursrc; % current xplobj
     if ~all(xplUsed) % if all xplobj aren't used
         xplUsed = curxpl; % reset xplUsed
         curlnk = linkedtips{cind} == curtip; % find current tip in linkedtips
         % Assign cursors to remaining data sources
         for tip = linkedtips{cind}(~curlnk)
             x = find(~xplUsed,1); % location of first unused src
-            tip.DataSource = xplobj{x};
+            tip.DataSource = xplobj(x);
             xplUsed(x) = true;
         end
     end
@@ -1062,7 +1070,7 @@ end
 end
 
 % --- Callbacks --- %
-function [] = pbtnCallback(src, event, ui, slct, usrcall)
+function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
 % Callback function for the user push buttons. Takes the currently
 % selected point information and the user supplied anonymous function with
 % arguments. After checking that points have been properly selected will
@@ -1079,34 +1087,36 @@ function [] = pbtnCallback(src, event, ui, slct, usrcall)
 % Define the external information structures. These are designed to make it
 % easier to access selected point and all associated data.
 
-% Contains ui graphics objects and lines associated with displayed data.
-usrobj = struct('xpl', slct, 'dcm', ui.dcm, 'pbtn', ui.pbtn);
-usrslct = struct('line', [], 'linenum', [], 'links', [], 'index', [], 'point', []);
+% Contains information associated with selected points data.
+slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
 
 cinfo = ui.dcm.getCursorInfo;
 for p = 1:length(cinfo)
-    lnnum = find( cellfun(@(C) isequal(C, cinfo(p).Target), {slct.xplobj}) , 1 ); % index of line in list of explorable objects
+    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 ); % index of line in list of explorable charts
 
-    % Get Target .(line)
-    usrslct(p).line = cinfo(p).Target;
-    usrslct(p).linenum = lnnum;
+    % Get Target .(chart)
+    slct(p).chart = cinfo(p).Target;
+    slct(p).chartnum = chartnum;
 
     % DataIndex .(index) and from cursor info if available. Else find it
     % from cursor info .(Position).
     if isfield(cinfo, 'DataIndex')
-        usrslct(p).index = cinfo(p).DataIndex;
+        slct(p).index = cinfo(p).DataIndex;
     else
-        usrslct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
+        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
     end
 
     % Get .(point) manually
-    usrslct(p).point = ind2pnt(cinfo(p).Target, slct(lnnum).data(:,2), usrslct(p).index);
+    slct(p).point = ind2pnt(cinfo(p).Target, ui.xpl(chartnum).data(:,2), slct(p).index);
 end
 
 % Get links
 if opt.SelectionLinkAxes
-    finished = false(1,length(usrslct));
-    inds = 1:length(usrslct);
+    
+    lnkind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
+    
+    finished = false(1,length(slct));
+    inds = 1:length(slct);
     for p = inds
         if ~finished(p)
             % Find tips linked to usrslct(p)
@@ -1115,11 +1125,11 @@ if opt.SelectionLinkAxes
 end
 
 % Call the user's function and pass arguments through
-usrcall{1}( src, event, usrobj, usrslct, usrcall{2:end} );
+fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
-function [] = lnSelectPnt(fig, event, fcn, lnkdt, ui, slct, slctopt)
+function [] = lnSelectPnt(fig, event, fcn, ui, lnkdt, opt)
 % Callback assigned to each selectable object (line, contour, surface
 % etc.). This is interjected before the standard matlab datatip mode
 % callback is executed and allows us to manage the datatips directly.
@@ -1129,17 +1139,26 @@ if isa(fcn,'function_handle')
    fcn(fig, event);
 end
 
+% Get index of selected object
+% Note: undocumented event property "HitObject"
+xlns = [ui.xpl.chart];
+s = xlns == event.HitObject;
+
 % If an explorable object was hit we need to continue with "normal" or 
 % "extend" if the modifier is "shift" or "alt" as this means a new data 
 % cursor was created.
 % Note: undocumented event property "HitObject"
-isxplhit = any(arrayfun( @(S) isequal(S.xplobj, event.HitObject), slct ));
+isxplhit = any(s);
 % Copied from %matlabroot%/toolbox/matlab/graphics/
 %               datacursormanager.m@localWindowButtonDownFcn()
 mod = get(fig,'CurrentModifier');
-isAddRequest = numel(mod)==1  && (strcmp(mod{1},'shift') || strcmp(mod{1},'alt'));
-if ~isxplhit || ~( strcmp(fig.SelectionType,'normal') ...
-        || (isAddRequest && strcmp(fig.SelectionType,'extend')) )
+% hMode = getuimode(hFig,'Exploration.Datacursor'); % don't need to check this if using change in alldt as the check
+
+isAddSelType = strcmp(fig.SelectionType, 'normal'); 
+isAddMod = numel(mod)==1  && strcmp(fig.SelectionType, 'extend') ...
+    && any( strcmp(mod{1}, {'shift','alt'})  );
+% isAddOption = hMode.ModeStateData.newCursor;
+if ~isxplhit || ~( isAddSelType || isAddMod )
     return;
 end
 
@@ -1148,17 +1167,16 @@ curcur = ui.dcm.CurrentCursor;
 alldt = findall(fig.Children, 'Type', 'hggroup');
 
 % Determine if a new cursor was added
-if ~isAddRequest && slctopt.SelectionLinkAxes
-    if numel(alldt) < numel(slct) || ( numel([lnkdt{:}]) < numel(alldt) )
+isAddRequest = false;
+if opt.SelectionLinkAxes
+    if numel(alldt) < numel(ui.xpl) || ( numel([lnkdt{:}]) < numel(alldt) )
         isAddRequest = true;
     end
 end
 
 % Link Axes
-if slctopt.SelectionLinkAxes && isAddRequest
-    % Get index of selected object and point
-    xlns = [slct.xplobj];
-    s = xlns == ui.dcm.CurrentCursor.DataSource;
+if opt.SelectionLinkAxes && isAddRequest
+    % Get index of point
     ind = ui.dcm.CurrentCursor.DataIndex;
 
     % Make Linked data tips
@@ -1183,7 +1201,7 @@ if slctopt.SelectionLinkAxes && isAddRequest
     for t = 1:length(lnkdt{end})
         rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
         % Add delete functions to linked tips
-        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, ui.dcm, lnkdt{end}(rt), fig};
+        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, fig, ui.dcm, ui.pbtn, lnkdt{end}(rt)};
         % Add property listener to move tips together - listeners are not
         % implimented for Datatips yet.
 %         plistenP = addlistener(dt(t),'Position','PostSet',{@rmCursorsNoLink, ui.dcm, dt(rt)});
@@ -1194,12 +1212,12 @@ if slctopt.SelectionLinkAxes && isAddRequest
     ui.dcm.CurrentCursor = curcur;
 
     % Update callback args
-    setLinkedTips(fig, lnkdt)
+    setLinkedTips(fig, ui.pbtn, lnkdt)
 
-elseif slctopt.SelectionLinkAxes
+elseif opt.SelectionLinkAxes
     % Ensure datatips move together
     curdt = findobj(alldt,'Cursor',curcur);
-    mvSrcLinkedTips(lnkdt, curdt, {slct.xplobj})
+    mvSrcLinkedTips(lnkdt, curdt, xlns)
     % We don't need to move the tips here because this is handled in the
     % button up function. We only ensure data sources are correct.
 end
@@ -1211,7 +1229,7 @@ end
 
 end
 
-function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
+function [] = rmLinkedCursors(srcdt, ~, fig, dcm, pbtns, dt)
 % Delete function callback when cursors are linked. Removes linked tips and
 % updates lnkdt callback argument for fig button down, button up, and key 
 % press functions.
@@ -1224,7 +1242,7 @@ function [] = rmLinkedCursors(srcdt, ~, dcm, dt, fig)
     cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
     lnkdt = lnkdt(~cind);
 
-    setLinkedTips(fig, lnkdt)
+    setLinkedTips(fig, pbtns, lnkdt)
 end
 
 function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
@@ -1284,27 +1302,27 @@ end
 
 end
 
-function str = dcmUpdate(pdtobj, eobj, ui, slct)
+function str = dcmUpdate(pdtobj, eobj, ui)
 
 % Get index of selected object
-s = [slct.xplobj] == eobj.Target;
+s = [ui.xpl.chart] == eobj.Target;
 ind = pdtobj.Cursor.DataIndex;
 
 % Get data point
-pnt = ind2pnt(eobj.Target, slct(s).data(:,2), ind);
+pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), ind);
 
 % Make string of data to display
-str = cell(1,length(slct(s).data));
+str = cell(1,length(ui.xpl(s).data));
 try % >= 20XXx
     ui.dcm.Interpreter;
-    for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
+    for d = 1:length(ui.xpl(s).data)
+        str{d} = [ui.xpl(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
     end
 catch % <= 20XXx
     pdtobj.TextColor = [0.3 0.6 0.3];
     pdtobj.FontWeight = 'bold';
-    for d = 1:length(slct(s).data)
-        str{d} = [slct(s).data{d,1} ' ' num2str(pnt(d),4)];
+    for d = 1:length(ui.xpl(s).data)
+        str{d} = [ui.xpl(s).data{d,1} ' ' num2str(pnt(d),4)];
     end
 end
 
