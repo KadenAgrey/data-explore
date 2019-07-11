@@ -105,15 +105,19 @@ in.parse(fig, pbtnfcn, varargin{:})
 fig = in.Results.fig;
 
 %% --- Initialize --- %%
-% These variables define the size and spacing of the ui objects
-pbtn_h = 30; % [pixels] PushButton height
-pbtn_blw_marg = 5; % [pixels] margin below PushButton
-pbtn_abv_marg = 3; % [pixels] margin above PushButton
+% These variables define the size and spacing of the ui objects. The
+% pushbuttons are placed at the bottom of the figure, so the figmargins are
+% used and pushbutton bottom margin is set to 0.
+pbsize = [100 25]; % [pixels] | [width height] PushButton size
+pbmargins = [3 0 0 3]; % [pixels] | [left bottom right top] PushButton margins
+figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window inside margins
 % txtedt_h = 20*2; % [pixels] Text & Edit box height
 % txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
-slctopt_fields = {'SelectionLinkAxes'};
-% slctopt_fields = {'SelectionLinkAxes','SelectionPerChart',...
-%                   'SelectionPerAxes'};
+
+% Fields to pass to callbacks as options
+opt_fields = {'SelectionLinkAxes'};
+% opt_fields = {'SelectionLinkAxes','SelectionPerChart',...
+%               'SelectionPerAxes'};
 
 % Initialize xplr struct with figure objects and slct struct with graphics 
 % objects to select points from. ui struct is also initialized, each field
@@ -169,7 +173,7 @@ end
 
 % Define a struct containing selection options to pass to the callbacks
 opt = struct();
-for f = slctopt_fields
+for f = opt_fields
     opt.(f{:}) = in.Results.(f{:});
 end
 
@@ -276,16 +280,19 @@ end
 fig.Units = 'pixels';
 set(fig.Children, 'Units', 'pixels');
 
-fig.Position(4) = fig.Position(4) + pbtn_h + pbtn_blw_marg + pbtn_abv_marg;
+% Move the children
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
+y = getBottomChild(fig, 'pixels', 'OuterPosition');
 for ch = children'
-    ch.Position(2) = ch.Position(2) + pbtn_h + pbtn_blw_marg + pbtn_abv_marg;
+    ch.Position(2) = ch.Position(2)-y + pbsize(2) + pbmargins(4) + figmargins(2);
 end
+% Resize the window to tightly wrap the children on the top and bottom
+y = getTopChild(fig, 'pixels', 'OuterPosition');
+fig.Position(4) = y + figmargins(4);
 
-% --- Make non-explorable axes children 'unpickable' --- %
+% --- Make non-explorable charts 'unpickable' --- %
 % Set the 'PickableParts' property for non-explorable axes children to
 % 'none'.
-% We only need to consider axes that are marked explorable
 for a = 1:length(xplr.ax)
     for ch = 1:length(xplr.ax(a).Children)
         if ~ismember(xplr.ax(a).Children(ch), xplr.ln)
@@ -298,18 +305,21 @@ end
 % uispec = cell(1,length(xplr.ax));
 
 % Make button to view details of selected point
-horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
-
-pbwidth = 150;
-ui.pbtn = gobjects(size(in.Results.pbtnfcn,1),1);
+horz = getLeftChild(fig, 'pixels', 'Position'); % place in line with farthest left plot
+ui.pbtn = gobjects(1, size(in.Results.pbtnfcn,1));
 for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',... % make the button
+    % Pushbutton position is in line with leftmost figure or next to the 
+    % last pushbutton with a size defined in pbsize.
+    pbpos = [horz + (pbsize(1) + pbmargins(1))*(pb-1), ...
+             pbmargins(2) + figmargins(2), pbsize];
+    % Make the button
+    ui.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',...
                                  'String', in.Results.pbtnfcn{pb,1},...
                                  'Units', 'pixels',...
-                                 'Position', [0 0 pbwidth pbtn_h]);
+                                 'Position', pbpos, ...
+                                 'Callback', {@pbtnCallback, in.Results.pbtnfcn(pb,2:end), ui, {}, opt});
 
-    ui.pbtn(pb).Position = ui.pbtn(pb).Position + [horz + pbwidth*(pb-1) pbtn_blw_marg 0 0];
-    % ui.fig.pbtn(pb).Units = 'normalized'; % reset units
+    ui.pbtn(pb).Units = 'normalized'; % set units
 end
 
 % Make text and edit objects for each explorable axes
@@ -333,11 +343,6 @@ end
 %     [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), uispec{a}, txtedtmarg, txtopt, editopt);
 % 
 % end
-
-% Assign user callback functions to push buttons
-for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.pbtn(pb).Callback = {@ pbtnCallback, in.Results.pbtnfcn(pb,2:end), ui, {}, opt};
-end
 
 % Assign listener to dcm 'Enable' property
 % plistenE = addlistener(ui.dcm,'Enable','PostSet',{@setTipCallbacks, fig, ui, opt, {}});
@@ -497,36 +502,45 @@ end
 
 end
 
-function [pos, ind] = getLeftChild(parent, unit)
+function [pos, ind] = getLeftChild(parent, unit, prop)
 % Gets leftmost child object
-nch = length(parent.Children);
-pos = zeros(nch,1);
-for ch = 1:nch
-    oldunit = parent.Children(ch).Units; % to reset units
-    parent.Children(ch).Units = unit; % set units
+children = [parent.Children]; % all children
 
-    pos(ch) = parent.Children(ch).Position(1); % get horizontal position
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
 
-    parent.Children(ch).Units = oldunit; % reset units
-end
-[pos,ind] = min(pos);
+position = [children.(prop)]; % all positions
+[pos,ind] = min(position(1:4:end)); % minimum x-position and child index
+
+set(children, {'Units'}, oldunit); % reset units
 
 end
 
-function [pos, ind] = getBottomChild(parent)
+function [pos, ind] = getBottomChild(parent, unit, prop)
 % Gets lowest child object
-nch = length(parent.Children);
-pos = zeros(nch,1);
-for ch = 1:nch
-    oldunit = parent.Children(ch).Units; % to reset units
-    parent.Children(ch).Units = unit; % set units
+children = [parent.Children]; % all children
 
-    pos(ch) = parent.Children(ch).Position(2); % get horizontal position
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
 
-    parent.Children(ch).Units = oldunit; % reset units
+position = [children.(prop)]; % all positions
+[pos,ind] = min(position(2:4:end)); % minimum x-position and child index
+
+set(children, {'Units'}, oldunit); % reset units
+
 end
-[pos,ind] = min(pos);
 
+function [pos, ind] = getTopChild(parent, unit, prop)
+% Gets lowest child object
+children = [parent.Children]; % all children
+
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
+
+position = [children.(prop)]; % all positions
+[pos,ind] = max(position(2:4:end) + position(4:4:end)); % maximum y-position and child index
+
+set(children, {'Units'}, oldunit); % reset units
 end
 
 function [lnkdt] = getLinkedTips(fig)
@@ -589,7 +603,9 @@ end
 function [] = setLinkedTipsButton(pbtn, lnkdt)
 
 for p = pbtn
-    p.Callback{4} = lnkdt;
+    if isgraphics(p)
+        p.Callback{4} = lnkdt;
+    end
 end
 
 end
@@ -1112,14 +1128,14 @@ end
 
 % Get links
 if opt.SelectionLinkAxes
-    
-    lnkind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
-    
-    finished = false(1,length(slct));
-    inds = 1:length(slct);
-    for p = inds
-        if ~finished(p)
-            % Find tips linked to usrslct(p)
+    % For each set of linked tips, get their indices in the slct struct
+    for lnk = lnkdt
+        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
+
+        % For each ind, assign the others as links in each slct.links
+        nn = 1:length(ind);
+        for n = nn
+            slct(ind(n)).links = ind(n~=nn);
         end
     end
 end
