@@ -2,8 +2,8 @@
 
 % First generate the main figure to serve as the ui window.
 fig = figure;
-fig.Position(3) = fig.Position(3)*2;
-subplot(1,2,1)
+fig.Position(2:3) = [2, fig.Position(3)*2];
+subplot(1,2,2)
 surf(160*membrane(1,100), 'EdgeColor','none');
 axis tight
 title('Surf Plot')
@@ -11,10 +11,10 @@ xlabel('x')
 ylabel('y')
 zlabel('z')
 
-subplot(1,2,2)
+subplot(1,2,1)
 contourf(160*membrane(1,100), 'EdgeColor','none');
 axis tight
-title('Surf Plot')
+title('Contour Plot')
 xlabel('x')
 ylabel('y')
 zlabel('z')
