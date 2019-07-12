@@ -1,72 +1,89 @@
-function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
-% exploreResults launches an interactive plot from which data points can be
-% selected and detailed results for that case viewed.
+function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
+% exploreResults launches an interactive plot from which detailed results 
+% are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v1.1 2018.07.11
+% v2.0 2019.07.12
 % 
 % Input
-%   mainplot: Figure handle on which to place ui elements. The script will 
+% fig: 
+%   Figure handle on which to place ui elements. The script will 
 %   automatically add space for the for the ui elements.
 % 
-%   pbtnfcn: This argument is used to initialize the push buttons. It 
-%   should be a cell array with the button name as the first column, a 
-%   function handle as the second column and arguments to the function as 
-%   later columns. Each row corresponds to a different pushbutton, which 
-%   will be added to the figure as needed.
+% 
+% pbtnfcn: 
+%   This argument is used to initialize the push buttons. It should be a 
+%   cell array with the button name as the first column, a function handle 
+%   as the second column and arguments to the function as later columns. 
+%   Each row corresponds to a different pushbutton, which will be added to 
+%   the figure as needed.
+% 
 %   The first 4 arguments to the function MUST be reserved for
 %   exploreResults. The latter arguments should correspond to those in the
-%   cell array. Eg.
-%       function argout = myFunc(src, event, slct, ui, arg1, arg2, ... )
-%       src: matlab variable pointing to the src of the callback.
-%       event: matlab variable giving event information
+%   cell array. Eg:
+%       pbtnfcn = {'My Button', fcn, arg1, arg2};
+%   will correspond to the user function,
+%       function argout = myFunc(src, event, ui, slct, arg1, arg2, ... )
+% 
+%   The reserved arguments are:
+%       src: matlab variable pointing to the src of the callback, which is
+%       the pushbutton object.
+%       event: matlab variable giving event information.
+%       ui: exploreResults variable with handles for all ui elements and
+%       explorable chart objects.
+%           ui.dcm: data cursor manager object
+%           ui.pbtn: push button object
+%           ui.xpl(i).chart: explorable chart object (a line or contour)
+%           ui.xpl(i).data: cell array containing axes and/or user data
+%           associated with the chart object.
 %       slct: exploreResults variable with information on the selected
 %       points. 
-% TODO: fields have been changed, update comment here
-%           slct(i).xplobj: graphics object with explorable data
-%           slct(i).pnt: list of graphics objects for selected points
-%           slct(i).ind: list of selected linear indices from explorable 
-%           data
-%       ui: exploreResults variable with pointers to all ui elements
+%           slct(j).chart: chart object point is on
+%           slct(j).chartnum: index of chart object in ui.xpl(i).chart
+%           slct(j).links: if SelectionLinkCharts is true, index of other 
+%           selected points, slct(j), linked to this one.
+%           slct(j).index: linear index of selected point in associated 
+%           chart data, ui.xpl(chartnum).data.
+%           slct(j).point: value of associated data at index.
 % 
 % 
-%   lines: A list of the graphics objects that will be selectable. This is
-%   not a list of axes, but of the axes children that will be selectable.
+% Optional
+% charts: 
+%   A list of the graphics objects that will be selectable. This is not a 
+%   list of axes, but of the axes children that will be selectable. 
 %   Supported types are: lines (2D, 3D), scatters (2D, 3D), contours and
-%   surfaces. Other types may work. These object options are set correctly 
-%   by default in MATLAB.
-%       ln.HitTest = 'on'
-%       ln.PickableParts = 'visible'
+%   surfaces. Other types may work but have not been tested. These object 
+%   options are set correctly by default in MATLAB, ensure you haven't 
+%   changed them.
+%       chart.HitTest = 'on'
+%       chart.PickableParts = 'visible'
 % 
-%   TODO: Set fig, axes, and line units carefully
-%   TODO: manually positioned colorbars shuoldn't always be aligned with the
-%   row they belong to - switch to an algorithm that offsets row members
-%   instead of aligning them.
-%   TODO: Find out how to force Matlab to wait for the renderer before
-%   executing the mainplot formatting. - drawnow; doesn't seem to work
+% TODO: Find out how to force Matlab to wait for the renderer before
+% executing the mainplot formatting. - drawnow; doesn't seem to work
 % 
 % 
-%   txtedtdat: A cell array with name/data pairs that will display
-%   information on the selected points under each axes. The cell array
-%   should be nested so that the first index corresponds to the axes number
-%   and the second to the name/data pairs.
-%       txtedtdat = { {name1, data1, name2, data2}, ... % axes 1
-%                     {name1, data1} }                  % axes 2
-%   Axes numbers should index in the same order that the "Explorable" axes
-%   were created and the data given to each name must have the same number
-%   of elements as the line from which it will be selected.
+% Name/Value Pairs
+% DataFromAxes:
+%   Boolean, true allows the function to automatically get the data from 
+%   axes and chart objects.
 % 
 % 
-%   usefigdat: Additionally the user can allow the function to
-%   automatically get the data from the axes and line objects by setting 
-%   this option to true. This will create two text/edit pairs for each 
-%   "Explorable" axes.
+% DataFromUser: 
+%   A cell array with name/data pairs that will be displayed with the 
+%   datatips. The cell array should be nested so that the first index 
+%   corresponds to the chart list, and the next index to name/data pairs.
+%       data = { {name1, data1; name2, data2}, ... % chart 1
+%                {name1, data1}, ...               % chart 2
+%                {name1, data1;, name2, data2} }   % chart 3
+%   Data arrays must have the same number of elements and dimension as the 
+%   chart from which it will be selected.
 % 
 % 
-%   linkselect: When this option is set to true it will force all
-%   axes with explorable children to have the same index selected. 
-%   Selecting a point on one plot will select the same point on all plots. 
+% SelectionLinkCharts: 
+%   Boolean, if true will force all explorable charts to have the same
+%   indices selected. Selecting a point on one chart will select the same 
+%   point on all charts. 
 % 
-%   TODO: Let user specify which plots to link
+% TODO: Let user specify which plots to link
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
@@ -77,6 +94,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %   passing a list of objects, this is more Matlab-like
 %   2019.05.05: Added input parsing and param/value arguments
 %   2019.05.10: Added support for multiple user push button functions
+%   2019.07.12: Switched data display to use MATLABs datatips
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
@@ -92,8 +110,8 @@ in.addOptional('charts', getAllExplorableCharts(fig), chkCharts); % charts to se
 % Optional Name/Value Pairs
 in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
-in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
-% in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per axes
+in.addParameter('SelectionLinkCharts',true); % link selected points accross all selectable objects
+% in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
 % in.addParameter('SelectionProperties', []); % properties of selection marker
 
 in.parse(fig, pbtnfcn, varargin{:})
@@ -102,47 +120,46 @@ in.parse(fig, pbtnfcn, varargin{:})
 fig = in.Results.fig;
 
 %% --- Initialize --- %%
-% --- ui struct --- %
+% --- ui --- %
 % Initialize the struct to reference ui objects, this is passed to 
 % callbacks.
-%   ui.pbtn is an array holding all pbtn objects
-%   ui.dcm holds the datacursormode object
 % Calling datacursormode here creates the mode object, whose default
 % functions we will change to add our own functionality.
 ui = struct('pbtn', [], 'dcm', datacursormode(fig), 'xpl', struct('chart', [], 'data', []));
 
 % --- ui.xpl --- %
-% Get chart objects and data selected points will be associated with. This 
-% is passed to callbacks.
+% Get chart objects and data that selected points will be associated with. 
+% This is passed to callbacks.
 for p = 1:length(in.Results.charts)
     ui.xpl(p).chart = in.Results.charts(p); % chart object handle
 
-    % Get labels. If a label is empty use x,y,z as default.
-    lab = {'x', 'y', 'z'};
-    if ~isempty(ui.xpl(p).chart.Parent.XLabel.String)
-        lab{1} = ui.xpl(p).chart.Parent.XLabel.String;
-    end
-    if ~isempty(ui.xpl(p).chart.Parent.YLabel.String)
-        lab{2} = ui.xpl(p).chart.Parent.YLabel.String;
-    end
-    if ~isempty(ui.xpl(p).chart.Parent.ZLabel.String)
-        lab{3} = ui.xpl(p).chart.Parent.ZLabel.String;
+    % Get data from axes
+    if in.Results.DataFromAxes
+        % Get labels. If a label is empty use x,y,z as default.
+        lab = {'x', 'y', 'z'};
+        if ~isempty( ui.xpl(p).chart.Parent.XLabel.String )
+            lab{1} = ui.xpl(p).chart.Parent.XLabel.String;
+        end
+        if ~isempty( ui.xpl(p).chart.Parent.YLabel.String )
+            lab{2} = ui.xpl(p).chart.Parent.YLabel.String;
+        end
+        if ~isempty( ui.xpl(p).chart.Parent.ZLabel.String )
+            lab{3} = ui.xpl(p).chart.Parent.ZLabel.String;
+        end
+
+        % Construct data cell
+        if isempty( ui.xpl(p).chart.ZData )
+            ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                              lab{2}, ui.xpl(p).chart.YData};
+        else
+            ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                              lab{2}, ui.xpl(p).chart.YData; ...
+                              lab{3}, ui.xpl(p).chart.ZData};
+        end
     end
 
-    % Construct data cell
-    if isempty(ui.xpl(p).chart.ZData)
-        ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
-                        lab{2}, ui.xpl(p).chart.YData};
-    else
-        ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
-                        lab{2}, ui.xpl(p).chart.YData; ...
-                        lab{3}, ui.xpl(p).chart.ZData};
-    end
-
-    % Combine with user data
-    if isempty(in.Results.DataFromUser)
-        ui.xpl(p).data = ui.xpl(p).data;
-    else
+    % Combine with user data if provided
+    if ~isempty(in.Results.DataFromUser)
         ui.xpl(p).data = [ui.xpl(p).data; in.Results.DataFromUser{p}];
     end
 end
@@ -157,9 +174,8 @@ figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window ins
 
 % --- Collection options to pass to callbacks --- %
 % Fields to pass to callbacks as options
-opt_fields = {'SelectionLinkAxes'};
-% opt_fields = {'SelectionLinkAxes','SelectionPerChart',...
-%               'SelectionPerAxes'};
+opt_fields = {'SelectionLinkCharts'};
+% opt_fields = {'SelectionLinkCharts','SelectionPerChart'};
 
 % Define struct containing options to pass to the callbacks
 opt = struct();
