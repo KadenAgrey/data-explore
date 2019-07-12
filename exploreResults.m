@@ -168,7 +168,7 @@ end
 % These variables define the size and spacing of the ui objects. The
 % pushbuttons are placed at the bottom of the figure, so the figmargins are
 % used and pushbutton bottom margin is set to 0.
-pbsize = [100 25]; % [pixels] | [width height] PushButton size
+pbsize = [100 30]; % [pixels] | [width height] PushButton size
 pbmargins = [3 0 0 3]; % [pixels] | [left bottom right top] PushButton margins
 figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window inside margins
 
@@ -185,8 +185,8 @@ end
 
 %% --- Prepair Main Figure --- %%
 % --- Figure size and plot positioning --- %
-fig.Units = 'pixels';
-set(fig.Children, 'Units', 'pixels');
+units = get([fig, fig.Children'], 'Units'); % units to reset later
+set([fig fig.Children'], 'Units', 'pixels');
 
 % Move the children
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
@@ -197,6 +197,9 @@ end
 % Resize the window to tightly wrap the children on the top and bottom
 y = getTopChild(fig, 'pixels', 'OuterPosition');
 fig.Position(4) = y + figmargins(4);
+
+% Reset units
+set([fig fig.Children'], {'Units'}, units);
 
 % --- Make non-explorable charts 'unpickable' --- %
 % Set the 'PickableParts' property for non-explorable axes children to
@@ -232,6 +235,8 @@ for pb = 1:size(in.Results.pbtnfcn,1)
 end
 
 % --- Assign new callbacks to dcmode --- %
+% getuimode() is an undocumented function and may change. Call copied from:
+%   %matlabroot%/toolbox/matlab/graphics/datacursormode.m@localGetMode()
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 % Set button down function
 fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, ui, {}, opt};
@@ -309,9 +314,11 @@ set(children, {'Units'}, oldunit); % reset units
 end
 
 function [lnkdt] = getLinkedTips(fig)
-% Gets linked tips cell array from fig window button down function
+% Gets linked tips cell array from dcmode window button down function
 % arguments.
 
+% getuimode() is an undocumented function and may change. Call copied from:
+%   %matlabroot%/toolbox/matlab/graphics/datacursormode.m@localGetMode()
 dcmode = getuimode(fig, 'Exploration.Datacursor');
 if ~isempty(dcmode)
     lnkdt = dcmode.WindowButtonDownFcn{4};
@@ -326,7 +333,7 @@ function [] = setLinkedTips(fig, pbtn, lnkdt)
 % Update <lnkdt> argument in figure and mode callbacks
 
 % --- Update figure callback arguments --- %
-disableFigFcnListener(fig)
+disableFigFcnListener(fig);
 fig.WindowButtonDownFcn{end}{4} = lnkdt;
 fig.WindowButtonUpFcn{end}{4} = lnkdt;
 fig.KeyPressFcn{end}{4} = lnkdt;
@@ -346,17 +353,30 @@ end
 
 end
 
+% --- Checkers --- %
+function [] = checkCharts(charts, fig)
+% Checks that all <charts> belong to <fig>.
+for c = charts(:)'
+    if ~isequal(ancestor(c, 'figure'), fig)
+        error(['The gobject ' c.DisplayName 'is not part of the ' ...
+               'figure. All exploreable charts must be on the same figure.'])
+    end
+end
+
+end
+
 % --- Makers --- %
-function [dt] = makeDataCursor(dcm, target, ind, properties)
+function [dt] = makeDataCursor(dcm, target, index, properties)
+% Makes a datatip at the specificed index on the target graphics object.
 
 % Get the cursor position in data units
 if isempty(target.ZData)
     % Reconsider doing things this way, it requires constructing a cell 
     % array out of the plot data. Alternative: write a function to do the
     % same thing as ind2pnt but using target data instead of a cell array.
-    pnt = ind2pnt(target, {target.XData, target.YData}, ind);
+    pnt = ind2pnt(target, {target.XData, target.YData}, index);
 else
-    pnt = ind2pnt(target, {target.XData, target.YData, target.ZData}, ind);
+    pnt = ind2pnt(target, {target.XData, target.YData, target.ZData}, index);
 end
 
 % Get cursor position in pixels
@@ -373,7 +393,7 @@ dt = dcm.createDatatip(target, figpnt);
 % this we need to correct the point using increment functions. This should 
 % never need to increment very many steps, unless the grid is extremely 
 % fine compared to the figure size.
-incrementCursorToIndex(dt.Cursor, ind);
+incrementCursorToIndex(dt.Cursor, index);
 
 % % Create a copy of the context menu for the datatip:
 % set(dc,'UIContextMenu',dcm.UIContextMenu);
@@ -396,17 +416,6 @@ incrementCursorToIndex(dt.Cursor, ind);
 end
 
 % --- Utility --- %
-function [] = checkCharts(charts, fig)
-% Checks that all <charts> belong to <fig>.
-for c = charts(:)'
-    if ~isequal(ancestor(c, 'figure'), fig)
-        error(['The gobject ' c.DisplayName 'is not part of the ' ...
-               'figure. All exploreable charts must be on the same figure.'])
-    end
-end
-
-end
-
 function [] = disableFigFcnListener(fig)
 % This uses undocumented functionality, see link below if it breaks. We
 % need to disable some listeners so that we can change the button down
@@ -421,7 +430,7 @@ end
 
 end
 
-function [pnt] = ind2pnt(line, data, ind)
+function [pnt] = ind2pnt(chart, data, index)
 % Converts linear indices into the corresponding data point. This function
 % accounts for gridded data. If the data are from a meshgrid object
 % (surface or volumetric) then x, y, and z may be given as vectors. If this
@@ -432,8 +441,8 @@ pnt = zeros(1,length(data)); % holds the point to return
 
 % If the line doesn't use meshgrids then ind applies directly and we return
 % early.
-if ~any(strcmp(line.Type, {'contour', 'surface'}))
-    pnt = cellfun(@(C) C(ind), data);
+if ~any(strcmp(chart.Type, {'contour', 'surface'}))
+    pnt = cellfun(@(C) C(index), data);
     return;
 end
 
@@ -449,18 +458,18 @@ if any(isvec)
     levi = find(~isvec,1); % index of 'level' data
     sub = zeros(1,length(data));
     if levi < 4
-        [sub(2), sub(1)] = ind2sub(size(data{levi}), ind);
+        [sub(2), sub(1)] = ind2sub(size(data{levi}), index);
     else
-        [sub(2), sub(1), sub(3)] = ind2sub(size(data{levi}), ind);
+        [sub(2), sub(1), sub(3)] = ind2sub(size(data{levi}), index);
     end
-    sub(levi:end) = ind; % the level data is gridded, use linear index
+    sub(levi:end) = index; % the level data is gridded, use linear index
 
 else
 % The spatial data is in matrix form. Note that this assumes the user
 % provides only data with the same dimensions as the level data, which 
 % they should.
     sub = zeros(1,length(data));
-    sub(:) = ind;
+    sub(:) = index;
 end
 
 for p = 1:length(data)
@@ -469,33 +478,33 @@ end
 
 end
 
-function [ind] = pnt2ind(line, pnt)
-% Uses X, Y, and ZData in a line to find the associated index of a given
+function [ind] = pnt2ind(chart, pnt)
+% Uses X, Y, and ZData in a chart to find the associated index of a given
 % point. Will always return the linear index matching the ZData, even if X
 % and Y are vectors.
 
-if any(strcmp(line.Type, {'contour', 'surface'}))
+if any(strcmp(chart.Type, {'contour', 'surface'}))
 % Data is a grid
     % We must search the X and Y data for subscripts because ZData may not 
     % be unique.
     % Get x index
-    if isvector(line.XData) % XData is a vector
-        x = find(line.XData == pnt(1), 1);
+    if isvector(chart.XData) % XData is a vector
+        x = find(chart.XData == pnt(1), 1);
     else % XData is a nd grid ERROR: This won't work for 3D data ----------------------------------------------------------------------
-        x = find(line.XData(1,:) == pnt(1), 1);
+        x = find(chart.XData(1,:) == pnt(1), 1);
     end
     % Get y index
-    if isvector(line.YData) % XData is a vector
-        y = find(line.YData == pnt(2), 1);
+    if isvector(chart.YData) % XData is a vector
+        y = find(chart.YData == pnt(2), 1);
     else % XData is a nd grid
-        y = find(line.YData(1,:) == pnt(2), 1);
+        y = find(chart.YData(1,:) == pnt(2), 1);
     end
 
     % Convert to linear index
-    ind = sub2ind(size(line.ZData),y,x);
+    ind = sub2ind(size(chart.ZData),y,x);
 else
 % Data is a 1D sequence.
-    ind = find(line.XData == pnt(1), 1);
+    ind = find(chart.XData == pnt(1), 1);
 end
 
 end
@@ -581,7 +590,7 @@ pntf = pos(1:2) + pos(3:4).*pntax;
 
 end
 
-function [] = rmCursors(~, ~, dcm, dc)
+function [] = rmCursors(~, ~, dcm, dcs)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors.
 %
@@ -596,8 +605,8 @@ function [] = rmCursors(~, ~, dcm, dc)
 % dc:
 %   Array of data cursors to be removed.
 
-for c = dc(:)'
-    dcm.removeDataCursor(c)
+for dc = dcs(:)'
+    dcm.removeDataCursor(dc)
 end
 
 end
@@ -605,14 +614,14 @@ end
 function [] = rmCursorsNoLink(~, ~, dcm, dt)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % datatips after disabling the delete callback function
-%
+% 
 % Input
 % ~: 
 %   First two arguments are placeholders for when this function is set as a
 %   callback.
 % 
 % dcm:
-%   Datacursormanager object.
+%   datacursormanager object.
 % 
 % dt:
 %   Array of datatips to be removed.
@@ -622,7 +631,7 @@ rmCursors([], [], dcm, [dt.Cursor])
 
 end
 
-function [] = mvCursors(~,~, dc, cur)
+function [] = mvCursors(~,~, dcs, cur)
 % Invokes the datacursor.moveTo function to move an array of cursors to the
 % same index on their sources as the cursor <cur>
 %
@@ -638,28 +647,28 @@ function [] = mvCursors(~,~, dc, cur)
 %   Cursor whose data index to match.
 
 ind = cur.DataIndex;
-for c = dc(:)'
-    if c.DataIndex == ind
+for dc = dcs(:)'
+    if dc.DataIndex == ind
     % If the index hasn't changed then we don't need to move this tip.
         continue;
     end
 
-    if isempty(c.DataSource.ZData)
+    if isempty(dc.DataSource.ZData)
         % Reconsider doing things this way, it requires constructing a cell 
         % array out of the plot data. Alternative: write a function to do the
         % same thing as ind2pnt but using target data instead of a cell array.
-        pnt = ind2pnt(c.DataSource, {c.DataSource.XData, c.DataSource.YData}, ind);
+        pnt = ind2pnt(dc.DataSource, {dc.DataSource.XData, dc.DataSource.YData}, ind);
     else
-        pnt = ind2pnt(c.DataSource, {c.DataSource.XData, c.DataSource.YData, c.DataSource.ZData}, ind);
+        pnt = ind2pnt(dc.DataSource, {dc.DataSource.XData, dc.DataSource.YData, dc.DataSource.ZData}, ind);
     end
 
-    units = c.DataSource.Parent.Units;
-    c.DataSource.Parent.Units = 'pixels';
+    units = dc.DataSource.Parent.Units;
+    dc.DataSource.Parent.Units = 'pixels';
 
-    figpnt = data2fig(c.DataSource.Parent, pnt);
-    c.moveTo(figpnt);
+    figpnt = data2fig(dc.DataSource.Parent, pnt);
+    dc.moveTo(figpnt);
 
-    c.DataSource.Parent.Units = units;
+    dc.DataSource.Parent.Units = units;
 
     % Sometimes data2fig selects the wrong point. This can be due to rounding
     % in createDatatip, or data2fig not accounting for all
@@ -667,7 +676,7 @@ for c = dc(:)'
     % this we need to correct the point using increment functions. This should 
     % never need to increment very many steps, unless the grid is extremely 
     % fine compared to the figure size.
-    incrementCursorToIndex(c, ind);
+    incrementCursorToIndex(dc, ind);
 end
 
 end
@@ -747,18 +756,18 @@ end
 
 end
 
-function [] = incrementCursorToIndex(cursor, ind)
+function [] = incrementCursorToIndex(cursor, index)
 % Increments data cursor to <ind>
 % 
 % Input
 % cursor:
 %   Cursor object to increment.
 % 
-% ind:
+% index:
 %   Index to increment to.
 
 % If indices are already the same, return
-if cursor.DataIndex == ind
+if cursor.DataIndex == index
     return;
 end
 
@@ -766,13 +775,13 @@ source = cursor.DataSource;
 
 % Get the x and y indices
 if any(strcmp(source.Type, {'contour', 'surface'}))
-    [ytrue, xtrue] = ind2sub(size(source.ZData),ind);
+    [ytrue, xtrue] = ind2sub(size(source.ZData),index);
     [y, x] = ind2sub(size(source.ZData),cursor.DataIndex);
 else
-    xtrue = ind;
-    ytrue = ind;
+    xtrue = index;
+    ytrue = index;
     y = cursor.DataIndex;
-    x = ind; % it's not a grid, we only need to increment one dimension
+    x = index; % it's not a grid, we only need to increment one dimension
 end
 
 % Get distance to increment
@@ -800,15 +809,14 @@ end
 end
 
 % --- Callbacks --- %
-function str = dcmUpdate(pdtobj, eobj, ui)
+function str = dcmUpdate(dt, eobj, ui)
 % Builds string for data cursor display.
 
 % Get index of selected object
 s = [ui.xpl.chart] == eobj.Target;
-ind = pdtobj.Cursor.DataIndex;
 
 % Get data point
-pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), ind);
+pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
 
 % Make string of data to display
 str = cell(1,length(ui.xpl(s).data));
@@ -818,8 +826,8 @@ try % >= 20XXx
         str{d} = [ui.xpl(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
     end
 catch % <= 20XXx
-    pdtobj.TextColor = [0.3 0.6 0.3];
-    pdtobj.FontWeight = 'bold';
+    dt.TextColor = [0.3 0.6 0.3];
+    dt.FontWeight = 'bold';
     for d = 1:length(ui.xpl(s).data)
         str{d} = [ui.xpl(s).data{d,1} ' ' num2str(pnt(d),4)];
     end
