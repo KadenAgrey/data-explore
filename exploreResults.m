@@ -189,7 +189,7 @@ units = get([fig, fig.Children'], 'Units'); % units to reset later
 set([fig fig.Children'], 'Units', 'pixels');
 
 % Move the children
-children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
+children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto', '-and', {'-not', '-property', 'Location', '-or', 'Location', 'none'});
 y = getBottomChild(fig, 'pixels', 'OuterPosition');
 y = min([y, getBottomChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is lower
 for ch = children'
