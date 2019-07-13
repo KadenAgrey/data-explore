@@ -191,11 +191,13 @@ set([fig fig.Children'], 'Units', 'pixels');
 % Move the children
 children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
 y = getBottomChild(fig, 'pixels', 'OuterPosition');
+y = min([y, getBottomChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is lower
 for ch = children'
     ch.Position(2) = ch.Position(2)-y + pbsize(2) + pbmargins(4) + figmargins(2);
 end
 % Resize the window to tightly wrap the children on the top and bottom
 y = getTopChild(fig, 'pixels', 'OuterPosition');
+y = max([y, getTopChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is higher
 fig.Position(4) = y + figmargins(4);
 
 % Reset units
@@ -274,43 +276,65 @@ end
 
 function [pos, ind] = getLeftChild(parent, unit, prop)
 % Gets leftmost child object
-children = [parent.Children]; % all children
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
 oldunit = get(children, 'Units'); % to reset units
 set(children, 'Units', unit); % set units
 
-position = [children.(prop)]; % all positions
-[pos,ind] = min(position(1:4:end)); % minimum x-position and child index
+position = getAsMat(children, prop); % all positions
+[pos,ind] = min(position(:,1)); % minimum x-position and child index
 
+if ~iscell(oldunit)
+    oldunit = {oldunit};
+end
 set(children, {'Units'}, oldunit); % reset units
 
 end
 
 function [pos, ind] = getBottomChild(parent, unit, prop)
 % Gets lowest child object
-children = [parent.Children]; % all children
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
 oldunit = get(children, 'Units'); % to reset units
 set(children, 'Units', unit); % set units
 
-position = [children.(prop)]; % all positions
-[pos,ind] = min(position(2:4:end)); % minimum x-position and child index
+position = getAsMat(children, prop); % all positions
+[pos,ind] = min(position(:,2)); % minimum x-position and child index
 
+if ~iscell(oldunit)
+    oldunit = {oldunit};
+end
 set(children, {'Units'}, oldunit); % reset units
 
 end
 
 function [pos, ind] = getTopChild(parent, unit, prop)
 % Gets lowest child object
-children = [parent.Children]; % all children
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
 oldunit = get(children, 'Units'); % to reset units
 set(children, 'Units', unit); % set units
 
-position = [children.(prop)]; % all positions
-[pos,ind] = max(position(2:4:end) + position(4:4:end)); % maximum y-position and child index
+position = getAsMat(children, prop); % all positions
+[pos,ind] = max(position(:,2) + position(:,4)); % maximum y-position and child index
 
+if ~iscell(oldunit)
+    oldunit = {oldunit};
+end
 set(children, {'Units'}, oldunit); % reset units
+
+end
+
+function [pmat] = getAsMat(gobjs, prop)
+% Returns the property requested of all graphics objects passed in as a
+% matrix. (only works if the property can be stored as a matrix)
+
+if length(gobjs) > 1
+    pmat = cell2mat(get(gobjs, prop));
+else
+    pmat = get(gobjs, prop);
+end
+
 end
 
 function [lnkdt] = getLinkedTips(fig)
@@ -836,9 +860,9 @@ end
 end
 
 function [] = lnSelectPnt(fig, event, fcn, ui, lnkdt, opt)
-% Callback assigned to each selectable object (line, contour, surface
-% etc.). This is interjected before the standard matlab datatip mode
-% callback is executed and allows us to manage the datatips directly.
+% Callback interjected before the standard matlab datatip mode
+% WindowButtonDownFcn callback is executed and allows us to manage the 
+% datatips directly.
 
 % Run the original callback
 if isa(fcn,'function_handle')
@@ -847,50 +871,50 @@ end
 
 % Get index of selected object
 % Note: undocumented event property "HitObject"
-xlns = [ui.xpl.chart];
-s = xlns == event.HitObject;
+xchts = [ui.xpl.chart];
+s = xchts == event.HitObject;
 
-% If an explorable object was hit we continue with "normal" selection type 
-% or "extend" if the modifier is "shift" or "alt", as this means a new data 
-% cursor was created.
-isxplhit = any(s);
+% If an explorable object was hit, we continue with selection type "normal"
+% or "extend" if the modifier is "shift" or "alt". This means a new data 
+% cursor was created or that one was moved.
+isXplHit = any(s);
 % Adapted from %matlabroot%/toolbox/matlab/graphics/
 %               datacursormanager.m@localWindowButtonDownFcn()
 mod = get(fig,'CurrentModifier');
 isAddSelType = strcmp(fig.SelectionType, 'normal');  % selection type is 'normal'?
 isAddMod = numel(mod)==1  && strcmp(fig.SelectionType, 'extend') ...
     && any( strcmp(mod{1}, {'shift','alt'})  ); % selection type is 'extend' with 'shift' or 'alt'?
-if ~isxplhit || ~( isAddSelType || isAddMod )
-    return; % return if no tip was made
+if ~isXplHit || ~( isAddSelType || isAddMod )
+    return; % return if we are sure no tip was made
 end
 
 % Store the current cursor to reset after
 curcur = ui.dcm.CurrentCursor;
-alldt = findall(fig.Children, 'Type', 'hggroup');
+alldt = findall(fig.Children, 'Type', 'hggroup'); % all datatips
 
 % Even if the correct key combinations were pressed it may not have 
 % resulted in a new data tip. Determine if a new cursor was added.
 isAdded = false;
-if opt.SelectionLinkAxes
+if opt.SelectionLinkCharts
     if numel(alldt) < numel(ui.xpl) || ( numel([lnkdt{:}]) < numel(alldt) )
         isAdded = true;
     end
 end
 
 % Link Axes
-if opt.SelectionLinkAxes && isAdded
+if opt.SelectionLinkCharts && isAdded
     % Get index of point
-    ind = ui.dcm.CurrentCursor.DataIndex;
+    index = ui.dcm.CurrentCursor.DataIndex;
 
     % Make Linked data tips
-    clns = [alldt.DataSource]; % cursor lines
+    cchts = [alldt.DataSource]; % cursor charts
     newdt = gobjects(0);
-    for ln = xlns(~s)
-        n = clns == ln;
+    for cht = xchts(~s) % loop over "non-hit" explorable charts
+        n = cchts == cht; % which datatips in <alldt> are on <cht>
         cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
         % Are there no tips on ln or are the tips at different indices?
-        if all(~n) || all(cindices ~= ind)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, ln, ind, []);
+        if all(~n) || all(cindices ~= index)
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, []);
         end
     end
     alldt = [alldt; newdt'];
@@ -913,10 +937,10 @@ if opt.SelectionLinkAxes && isAdded
     % Update callback args
     setLinkedTips(fig, ui.pbtn, lnkdt)
 
-elseif opt.SelectionLinkAxes
+elseif opt.SelectionLinkCharts
     % Ensure datatips move together
     curdt = findobj(alldt,'Cursor',curcur);
-    mvSrcLinkedTips(lnkdt, curdt, xlns)
+    mvSrcLinkedTips(lnkdt, curdt, xchts)
     % We don't need to move the tips here because this is handled in the
     % button up function. We only ensure data sources are correct.
 end
@@ -930,29 +954,24 @@ end
 
 function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
 % Callback function for the user push buttons. Takes the currently
-% selected point information and the user supplied anonymous function with
-% arguments. After checking that points have been properly selected will
-% launch the user function with the first four arguments as matlab defined
-% <src>, <event>, and exploreResults defined <usrobj> and <usrslct>.
-% 
-% TODO: What should be done if no points are selected? What about if less
-% points than explorable objects have been selected?
-% 
-% TODO: Currently haven't decided how to handle linked data tips here. I'm
-% thinking of changing the whole system over to a list of indices to make
-% things easier here and in the figure callbacks.
+% selected point information and the user supplied function with arguments.
+% After checking that points have been properly selected will launch the 
+% user function with the first four arguments as matlab defined <src>, 
+% <event>, and exploreResults defined <ui> and <slct>.
 
-% Define the external information structures. These are designed to make it
-% easier to access selected point and all associated data.
+% --- Define the external information structures --- %
+% These are designed to make it easier to access selected point and all 
+% associated data.
 
 % Contains information associated with selected points data.
 slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
 
 cinfo = ui.dcm.getCursorInfo;
 for p = 1:length(cinfo)
-    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 ); % index of line in list of explorable charts
+    % Index of chart in list of explorable charts
+    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
 
-    % Get Target .(chart)
+    % Get target .(chart)
     slct(p).chart = cinfo(p).Target;
     slct(p).chartnum = chartnum;
 
@@ -968,8 +987,8 @@ for p = 1:length(cinfo)
     slct(p).point = ind2pnt(cinfo(p).Target, ui.xpl(chartnum).data(:,2), slct(p).index);
 end
 
-% Get links
-if opt.SelectionLinkAxes
+% Get linked datatip information .(links)
+if opt.SelectionLinkCharts
     % For each set of linked tips, get their indices in the slct struct
     for lnk = lnkdt
         ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
@@ -982,14 +1001,15 @@ if opt.SelectionLinkAxes
     end
 end
 
+% --- Call user function --- %
 % Call the user's function and pass arguments through
 fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
 function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
-% If click and drag is used to move a tip then we need to update tip
-% locations on the button up action.
+% If click and drag is used to move a tip, we need to update tip locations 
+% on the button up action.
 
 % Run the original callback
 if isa(fcn,'function_handle')
@@ -1033,7 +1053,7 @@ direction = event.Key(1:end-length('arrow'));
 curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
 
 % Increment linked tips
-cind = cellfun(@(C) any(ismember(C, curdt)), lnkdt); % cell index of tips linked to curtip
+cind = cellfun(@(C) any(C == curdt), lnkdt); % cell index of tips linked to curtip
 if any(cind)
     rtind = lnkdt{cind} ~= curdt;
     for c = [lnkdt{cind}(rtind).Cursor]
@@ -1054,7 +1074,7 @@ function [] = rmLinkedCursors(srcdt, ~, fig, dcm, pbtns, dt)
     lnkdt = getLinkedTips(fig);
 
     % Remove deleted tips from lnkdt
-    cind = cellfun(@(C) any(ismember(C, srcdt)), lnkdt);
+    cind = cellfun(@(C) any(C == srcdt), lnkdt);
     lnkdt = lnkdt(~cind); 
 
     setLinkedTips(fig, pbtns, lnkdt)
