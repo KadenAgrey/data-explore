@@ -514,14 +514,14 @@ if any(strcmp(chart.Type, {'contour', 'surface'}))
     % Get x index
     if isvector(chart.XData) % XData is a vector
         x = find(chart.XData == pnt(1), 1);
-    else % XData is a nd grid ERROR: This won't work for 3D data ----------------------------------------------------------------------
+    else % XData is a nd grid
         x = find(chart.XData(1,:) == pnt(1), 1);
     end
     % Get y index
-    if isvector(chart.YData) % XData is a vector
+    if isvector(chart.YData) % YData is a vector
         y = find(chart.YData == pnt(2), 1);
     else % XData is a nd grid
-        y = find(chart.YData(1,:) == pnt(2), 1);
+        y = find(chart.YData(:,1) == pnt(2), 1);
     end
 
     % Convert to linear index
