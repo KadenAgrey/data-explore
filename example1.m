@@ -48,12 +48,8 @@ uispec = {{ 'Selected Index', 1:length(x); ...
 cutoff = 1; % just an argument for the example function
 pbtn_callback = {'User Function', @ userCallback, lines2(1), [], cutoff, []};
 
-% Set two aditional options
-usefigdat = true; % use data from figure for display boxes
-linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
-
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines1, 'DataFromUser', uispec, 'DataFromAxes', usefigdat, 'SelectionLinkAxes', linkselect );
+exploreResults( mainfig, pbtn_callback, lines1, 'DataFromUser', uispec, 'DataFromAxes', true, 'SelectionLinkCharts', true );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, newfig)

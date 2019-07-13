@@ -17,7 +17,7 @@ pbtn_callback = {'View x', @ userCallback, 'x';
                  'View z', @ userCallback, 'z'};
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, sf, 'DataFromAxes', true, 'SelectionLinkAxes', false );
+exploreResults( mainfig, pbtn_callback, sf, 'DataFromAxes', true, 'SelectionLinkCharts', false );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, dim)
@@ -26,11 +26,11 @@ function userCallback(src, event, ui, slct, dim)
 % slct and ui.
 
 if strcmp(dim, 'x')
-    disp(['x = ' num2str(slct.point(1))]);
+    disp(['x = ' num2str(slct(1).point(1))]);
 elseif strcmp(dim, 'y')
-    disp(['y = ' num2str(slct.point(2))]);
+    disp(['y = ' num2str(slct(1).point(2))]);
 elseif strcmp(dim, 'z')
-    disp(['z = ' num2str(slct.point(3))]);
+    disp(['z = ' num2str(slct(1).point(3))]);
 else
     disp('Please choose either ''x'', ''y'', ''z''');
 end

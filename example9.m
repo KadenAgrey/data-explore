@@ -36,10 +36,6 @@ end
 % exploreResults has an option for display boxes to show information on the
 % selected point. It can get this information from the line selected and/or
 % the user can provide the information in a cell array.
-uispec = {{ 'Selected Index', 1:length(x); 
-            'y2', y2/max(y2) },...
-          { 'y2', y2/max(y2) },...
-          { 'y2', y2/max(y2) }};
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
@@ -53,7 +49,7 @@ usefigdat = true; % use data from figure for display boxes
 linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, 'DataFromUser', uispec, 'DataFromAxes', usefigdat, 'SelectionLinkAxes', linkselect );
+exploreResults( mainfig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, newfig)
