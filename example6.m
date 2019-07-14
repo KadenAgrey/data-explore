@@ -54,7 +54,7 @@ usefigdat = true; % use data from figure for display boxes
 linkselect = true; % if there are multiple plots select the same point on all of them (requires each line has the same number of points)
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines, 'DataBoxFromAxes', true, 'SelectionLinkAxes', true );
+exploreResults( mainfig, pbtn_callback, lines, 'DataFromAxes', true, 'SelectionLinkCharts', true );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, newfig)
@@ -65,7 +65,7 @@ function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, newfig)
 % I recomend placing a breakpoint in here and running the script to take a
 % look at the structure of the arguments passed to this function
 
-ind = slct(1).ind; % for this case all indices should be the same
+ind = slct(1).index; % for this case all indices should be the same
 
 % --- Do something for fun --- %
 if ~isempty(extrapnt) && isvalid(extrapnt)

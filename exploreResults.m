@@ -1,73 +1,89 @@
-function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
-% exploreResults launches an interactive plot from which data points can be
-% selected and detailed results for that case viewed.
+function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
+% exploreResults launches an interactive plot from which detailed results 
+% are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v1.1 2018.07.11
+% v2.0 2019.07.12
 % 
 % Input
-%   mainplot: Figure handle on which to place ui elements. The script will 
+% fig: 
+%   Figure handle on which to place ui elements. The script will 
 %   automatically add space for the for the ui elements.
 % 
 % 
-%   pbtnfcn: This argument is used to initialize the push buttons. It 
-%   should be a cell array with the button name as the first column, a 
-%   function handle as the second column and arguments to the function as 
-%   later columns. Each row corresponds to a different pushbutton, which 
-%   will be added to the figure as needed.
+% pbtnfcn: 
+%   This argument is used to initialize the push buttons. It should be a 
+%   cell array with the button name as the first column, a function handle 
+%   as the second column and arguments to the function as later columns. 
+%   Each row corresponds to a different pushbutton, which will be added to 
+%   the figure as needed.
+% 
 %   The first 4 arguments to the function MUST be reserved for
 %   exploreResults. The latter arguments should correspond to those in the
-%   cell array. Eg.
-%       function argout = myFunc(src, event, slct, ui, arg1, arg2, ... )
-%       src: matlab variable pointing to the src of the callback.
-%       event: matlab variable giving event information
+%   cell array. Eg:
+%       pbtnfcn = {'My Button', fcn, arg1, arg2};
+%   will correspond to the user function,
+%       function argout = myFunc(src, event, ui, slct, arg1, arg2, ... )
+% 
+%   The reserved arguments are:
+%       src: matlab variable pointing to the src of the callback, which is
+%       the pushbutton object.
+%       event: matlab variable giving event information.
+%       ui: exploreResults variable with handles for all ui elements and
+%       explorable chart objects.
+%           ui.dcm: data cursor manager object
+%           ui.pbtn: push button object
+%           ui.xpl(i).chart: explorable chart object (a line or contour)
+%           ui.xpl(i).data: cell array containing axes and/or user data
+%           associated with the chart object.
 %       slct: exploreResults variable with information on the selected
 %       points. 
-% TODO: fields have been changed, update comment here
-%           slct(i).xplobj: graphics object with explorable data
-%           slct(i).pnt: list of graphics objects for selected points
-%           slct(i).ind: list of selected linear indices from explorable 
-%           data
-%       ui: exploreResults variable with pointers to all ui elements
+%           slct(j).chart: chart object point is on
+%           slct(j).chartnum: index of chart object in ui.xpl(i).chart
+%           slct(j).links: if SelectionLinkCharts is true, index of other 
+%           selected points, slct(j), linked to this one.
+%           slct(j).index: linear index of selected point in associated 
+%           chart data, ui.xpl(chartnum).data.
+%           slct(j).point: value of associated data at index.
 % 
 % 
-%   lines: A list of the graphics objects that will be selectable. This is
-%   not a list of axes, but of the axes children that will be selectable.
+% Optional
+% charts: 
+%   A list of the graphics objects that will be selectable. This is not a 
+%   list of axes, but of the axes children that will be selectable. 
 %   Supported types are: lines (2D, 3D), scatters (2D, 3D), contours and
-%   surfaces. Other types may work. These object options are set correctly 
-%   by default in MATLAB.
-%       ln.HitTest = 'on'
-%       ln.PickableParts = 'visible'
+%   surfaces. Other types may work but have not been tested. These object 
+%   options are set correctly by default in MATLAB, ensure you haven't 
+%   changed them.
+%       chart.HitTest = 'on'
+%       chart.PickableParts = 'visible'
 % 
-%   TODO: Set fig, axes, and line units carefully
-%   TODO: manually positioned colorbars shuoldn't always be aligned with the
-%   row they belong to - switch to an algorithm that offsets row members
-%   instead of aligning them.
-%   TODO: Find out how to force Matlab to wait for the renderer before
-%   executing the mainplot formatting. - drawnow; doesn't seem to work
+% TODO: Find out how to force Matlab to wait for the renderer before
+% executing the mainplot formatting. - drawnow; doesn't seem to work
 % 
 % 
-%   txtedtdat: A cell array with name/data pairs that will display
-%   information on the selected points under each axes. The cell array
-%   should be nested so that the first index corresponds to the axes number
-%   and the second to the name/data pairs.
-%       txtedtdat = { {name1, data1, name2, data2}, ... % axes 1
-%                     {name1, data1} }                  % axes 2
-%   Axes numbers should index in the same order that the "Explorable" axes
-%   were created and the data given to each name must have the same number
-%   of elements as the line from which it will be selected.
+% Name/Value Pairs
+% DataFromAxes:
+%   Boolean, true allows the function to automatically get the data from 
+%   axes and chart objects.
 % 
 % 
-%   usefigdat: Additionally the user can allow the function to
-%   automatically get the data from the axes and line objects by setting 
-%   this option to true. This will create two text/edit pairs for each 
-%   "Explorable" axes.
+% DataFromUser: 
+%   A cell array with name/data pairs that will be displayed with the 
+%   datatips. The cell array should be nested so that the first index 
+%   corresponds to the chart list, and the next index to name/data pairs.
+%       data = { {name1, data1; name2, data2}, ... % chart 1
+%                {name1, data1}, ...               % chart 2
+%                {name1, data1;, name2, data2} }   % chart 3
+%   Data arrays must have the same number of elements and dimension as the 
+%   chart from which it will be selected.
 % 
 % 
-%   linkselect: When this option is set to true it will force all
-%   axes with explorable children to have the same index selected. 
-%   Selecting a point on one plot will select the same point on all plots. 
+% SelectionLinkCharts: 
+%   Boolean, if true will force all explorable charts to have the same
+%   indices selected. Selecting a point on one chart will select the same 
+%   point on all charts. 
 % 
-%   TODO: Let user specify which plots to link
+% TODO: Let user specify which plots to link
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
@@ -78,25 +94,25 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin)
 %   passing a list of objects, this is more Matlab-like
 %   2019.05.05: Added input parsing and param/value arguments
 %   2019.05.10: Added support for multiple user push button functions
+%   2019.07.12: Switched data display to use MATLABs datatips
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
 
-% validDataBoxMode = {'active', 'inactive'};
-% checkDataBoxMode = @(s) validateString(s, validDataBoxMode);
+% Validation functions
+chkCharts = @(charts) checkCharts(charts,fig);
 
 % Required
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
 in.addRequired('pbtnfcn'); % function handle (with arguments) to call when button is pressed
 % Optional Positional
-in.addOptional('lines',gobjects(0)); % lines to select data points from (make optional later)
+in.addOptional('charts', getAllExplorableCharts(fig), chkCharts); % charts to select data points from
 % Optional Name/Value Pairs
-in.addParameter('DataBoxFromAxes',true); % display data from axes in boxes
-in.addParameter('DataBoxFromUser',[]); % display boxes will be added with user data
-in.addParameter('SelectionLinkAxes',true); % link selected points accross all selectable objects
-% in.addParameter('SelectionNumber', 1); % number of data points that can be selected per axes
+in.addParameter('DataFromAxes',true); % display data from axes in boxes
+in.addParameter('DataFromUser',{}); % display boxes will be added with user data
+in.addParameter('SelectionLinkCharts',true); % link selected points accross all selectable objects
+% in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
 % in.addParameter('SelectionProperties', []); % properties of selection marker
-% in.addParameter('DataBoxMode', 'inactive', checkDataBoxMode); % allow manual entry of data into display boxes (will be passed to push buttons
 
 in.parse(fig, pbtnfcn, varargin{:})
 
@@ -104,198 +120,142 @@ in.parse(fig, pbtnfcn, varargin{:})
 fig = in.Results.fig;
 
 %% --- Initialize --- %%
-% These variables define the size and spacing of the ui objects
-pbtn_h = 30; % [pixels] PushButton height
-pbtn_blw_marg = 5; % [pixels] Margin below PushButton
-txtedt_h = 20*2; % [pixels] Text & Edit box height
-txtedtmarg = [3 10 0 10]; % [pixels] Text-Edit box margins
+% --- ui --- %
+% Initialize the struct to reference ui objects, this is passed to 
+% callbacks.
+% Calling datacursormode here creates the mode object, whose default
+% functions we will change to add our own functionality.
+ui = struct('pbtn', [], 'dcm', datacursormode(fig), 'xpl', struct('chart', [], 'data', []));
 
-% Initialize xplr struct with figure objects and slct struct with graphics 
-% objects to select points from. ui struct is also initialized, each field
-% holds the ui objects by associated graphics object. (push buttons for the
-% figure, text/edit boxes for each axes they are placed under etc.)
+% --- ui.xpl --- %
+% Get chart objects and data that selected points will be associated with. 
+% This is passed to callbacks.
+for p = 1:length(in.Results.charts)
+    ui.xpl(p).chart = in.Results.charts(p); % chart object handle
 
-% Get all axes parenting explorable lines
-xplr = struct('ax', [], 'ln', getExplorableLines(fig, in.Results.lines));
-xplr.ax = getExplorableAx(fig, xplr.ln);
+    % Get data from axes
+    if in.Results.DataFromAxes
+        % Get labels. If a label is empty use x,y,z as default.
+        lab = {'x', 'y', 'z'};
+        if ~isempty( ui.xpl(p).chart.Parent.XLabel.String )
+            lab{1} = ui.xpl(p).chart.Parent.XLabel.String;
+        end
+        if ~isempty( ui.xpl(p).chart.Parent.YLabel.String )
+            lab{2} = ui.xpl(p).chart.Parent.YLabel.String;
+        end
+        if ~isempty( ui.xpl(p).chart.Parent.ZLabel.String )
+            lab{3} = ui.xpl(p).chart.Parent.ZLabel.String;
+        end
 
-% Initialize the struct to reference all ui objects. Each field will be an
-% array with numel(ui.field) equal to the number of explorable objects in
-% the corresponding field in xplr. (Eg, one figure, possibly several axes
-% and several lines for each axes). Stored in each field will be 
-ui = struct('fig', [], 'ax', []);
+        % Construct data cell
+        if isempty( ui.xpl(p).chart.ZData )
+            ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                              lab{2}, ui.xpl(p).chart.YData};
+        else
+            ui.xpl(p).data = {lab{1}, ui.xpl(p).chart.XData; ...
+                              lab{2}, ui.xpl(p).chart.YData; ...
+                              lab{3}, ui.xpl(p).chart.ZData};
+        end
+    end
 
-% Get objects that selected points will be associated with
-slct = struct('pnt', [], 'xplobj', []);
-for p = 1:length(xplr.ln)
-    slct(p).xplobj = xplr.ln(p);
+    % Combine with user data if provided
+    if ~isempty(in.Results.DataFromUser)
+        ui.xpl(p).data = [ui.xpl(p).data; in.Results.DataFromUser{p}];
+    end
+end
+
+% --- Window size and space --- %
+% These variables define the size and spacing of the ui objects. The
+% pushbuttons are placed at the bottom of the figure, so the figmargins are
+% used and pushbutton bottom margin is set to 0.
+pbsize = [100 30]; % [pixels] | [width height] PushButton size
+pbmargins = [3 0 0 3]; % [pixels] | [left bottom right top] PushButton margins
+figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window inside margins
+
+% --- Collection options to pass to callbacks --- %
+% Fields to pass to callbacks as options
+opt_fields = {'SelectionLinkCharts'};
+% opt_fields = {'SelectionLinkCharts','SelectionPerChart'};
+
+% Define struct containing options to pass to the callbacks
+opt = struct();
+for field = opt_fields
+    opt.(field{:}) = in.Results.(field{:});
 end
 
 %% --- Prepair Main Figure --- %%
 % --- Figure size and plot positioning --- %
-% TODO: clean up algorithm
-% Resize the figure and position the plots to fit the ui
-children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto');
-nch = length(children); % number of children in figure
-if nch > 1
-    cbmap = cellfun(@(C) strcmp(C,'colorbar'), get(children, 'Type'));
-else
-    cbmap = strcmp(get(children, 'Type'),'colorbar');
+units = get([fig, fig.Children'], 'Units'); % units to reset later
+set([fig fig.Children'], 'Units', 'pixels');
+
+% Move the children
+children = findobj(fig.Children, 'flat', '-not', 'AxisLocationMode', 'auto', '-and', {'-not', '-property', 'Location', '-or', 'Location', 'none'});
+y = getBottomChild(fig, 'pixels', 'OuterPosition');
+y = min([y, getBottomChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is lower
+for ch = children'
+    ch.Position(2) = ch.Position(2)-y + pbsize(2) + pbmargins(4) + figmargins(2);
 end
-fig.Units = 'pixels';
-set(fig.Children, 'Units', 'pixels');
+% Resize the window to tightly wrap the children on the top and bottom
+y = getTopChild(fig, 'pixels', 'OuterPosition');
+y = max([y, getTopChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is higher
+fig.Position(4) = y + figmargins(4);
 
-% Get size of all the figure children
-ax_tins = zeros(nch,4);
-for ch = 1:nch
-    % Some objects don't have a TightInset
-    if isprop(children(ch), 'TightInset')
-        ax_tins(ch,:) = children(ch).TightInset;
-    else
-        ax_tins(ch,:) = [0 0 0 0];
-    end
-end
+% Reset units
+set([fig fig.Children'], {'Units'}, units);
 
-ax_pos = getAsMat(children, 'Position');
-ax_siz = ax_pos(:,3:4); % save plot sizes now - they can automagically change
-ax_sub = getSubPlotInd(ax_pos(~cbmap,:)); % subplot-like indices for children (cell array)
-ax_sub = assignCBSubPlotInd(children, ax_sub, cbmap);
-ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
-nrow = max(ax_row);
-
-% Get rows that require padding (columns won't require padding)
-pad_row = []; % list of rows requiring padding
-for row = 1:nrow
-    rowch = find(row==ax_row)';
-    for ch = rowch
-
-        % If the child is Explorable then add the row to the pad list
-        ind = children(ch)==xplr.ax;
-        if any(ind) && ( in.Results.DataBoxFromAxes || ~isempty(in.Results.DataBoxFromUser(ind)) )
-            pad_row(length(pad_row)+1,1) = row;
-            break
-        end
-
-    end
-end
-
-% Reposition children
-% TODO: manually positioned colorbars shouldn't always be aligned with the
-% row they belong to - switch to an algorithm that offsets row members
-% equally instead of aligning them.
-ax_pos_new = ax_pos; % initially nothing has moved
-for row = nrow:-1:1 % start from the bottom
-    % Add text/edit padding if this row requires it
-    if ismember(row, pad_row)
-        axpad = txtedt_h + sum(txtedtmarg([2 4]));
-    else
-        axpad = txtedtmarg(2);
-    end
-
-    % Find the axes from which to get the height this row should start at
-    rowch = find(row==ax_row); % children in this row
-    rowcol = unique( cell2mat(ax_sub(rowch,2)) );
-
-    rowt = max(ax_tins(rowch,:),[],1); % the largest TightInsets from this row (we only use the bottom and top)
-    rowy = ax_pos(rowch(1),2) - rowt(2); % lowest y-position of this row
-
-    % Note: here a 10 pixel overlap is allowed when checking if a figure is
-    % below the row
-    allsharecol = cellfun(@(C) any(ismember(C, rowcol)), ax_sub(:,2));
-    allblw = ( sum(ax_pos(:,[2 4]), 2) + ax_tins(:,4) - 10 < rowy );
-    chblw = find( allsharecol.*allblw ); % children below and sharing a column with this row
-
-    if ~isempty(chblw)
-        rowy = max( sum(ax_pos_new(chblw,[2 4]), 2) + ax_tins(chblw,4) ); % new y-position of this row
-    else
-        rowy = pbtn_h - txtedtmarg(2) + 5; % if this is the bottom row place it 5 pixels above the PushButtons
-    end
-
-    % Move all the axes of this row accordingly
-    for ch = rowch'
-        children(ch).Position(2) = rowy + rowt(2) + axpad;
-    end
-
-    % Update the axes positions recorded
-    ax_pos_new = getAsMat(children, 'Position'); % ################## CHNAGE LATER
-    ax_pos_new(:,3:4) = ax_siz; % maintain axes sizes
-
-end
-
-% Resize figure window
-fig.OuterPosition(2) = 50; % move to the bottom of the screen
-fig.Position(4) = max( sum(ax_pos_new(:,[2 4]), 2) + ax_tins(:,4) ) + 10;
-
-% Reset the position sizes incase they have magically changed
-for ch = 1:length(children)
-    children(ch).Position(3:4) = ax_pos_new(ch, 3:4);
-end
-
-% --- Make non-explorable axes children 'unpickable' --- %
+% --- Make non-explorable charts 'unpickable' --- %
 % Set the 'PickableParts' property for non-explorable axes children to
 % 'none'.
-% We only need to consider axes that are marked explorable
-for a = 1:length(xplr.ax)
-    for ch = 1:length(xplr.ax(a).Children)
-        if ~ismember(xplr.ax(a).Children(ch), xplr.ln)
-            xplr.ax(a).Children(ch).PickableParts = 'none';
+axs = findobj(fig.Children, 'flat', 'Type', 'axes', '-or', ...
+                                   'Type', 'polaraxes', '-or', ...
+                                   'Type', 'geoaxes');
+for ax = axs'
+    for ch = 1:length(ax.Children)
+        if ~ismember(ax.Children(ch), in.Results.charts)
+            ax.Children(ch).PickableParts = 'none';
         end
     end
 end
 
 %% --- Setup UI --- %%
-uispec = cell(1,length(xplr.ax));
-
-% Make button to view details of selected point
-horz = getLeftChild(fig, 'pixels'); % place in line with farthest left plot
-
-pbwidth = 150;
-ui.fig.pbtn = gobjects(size(in.Results.pbtnfcn,1),1);
+% --- Make pushbuttons specified by user input --- %
+horz = getLeftChild(fig, 'pixels', 'Position'); % place in line with farthest left plot
+ui.pbtn = gobjects(1, size(in.Results.pbtnfcn,1));
 for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.fig.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',... % make the button
+    % Pushbutton position is in line with leftmost figure or next to the 
+    % last pushbutton with a size defined in pbsize.
+    pbpos = [horz + (pbsize(1) + pbmargins(1))*(pb-1), ...
+             pbmargins(2) + figmargins(2), pbsize]; % [x y w h];
+    % Make the button
+    ui.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',...
                                  'String', in.Results.pbtnfcn{pb,1},...
                                  'Units', 'pixels',...
-                                 'Position', [0 0 pbwidth pbtn_h]);
+                                 'Position', pbpos, ...
+                                 'Callback', {@pbtnCallback, in.Results.pbtnfcn(pb,2:end), ui, {}, opt});
 
-    ui.fig.pbtn(pb).Position = ui.fig.pbtn(pb).Position + [horz + pbwidth*(pb-1) pbtn_blw_marg 0 0];
-    % ui.fig.pbtn(pb).Units = 'normalized'; % reset units
+    ui.pbtn(pb).Units = 'normalized'; % set units
 end
 
-% Make text and edit objects for each explorable axes
-nax = length(xplr.ax);
-for a = 1:nax
+% --- Assign new callbacks to dcmode --- %
+% getuimode() is an undocumented function and may change. Call copied from:
+%   %matlabroot%/toolbox/matlab/graphics/datacursormode.m@localGetMode()
+dcmode = getuimode(fig, 'Exploration.Datacursor');
+% Set button down function
+fcn = {@lnSelectPnt, dcmode.WindowButtonDownFcn, ui, {}, opt};
+dcmode.WindowButtonDownFcn = fcn;
+% Set button up function
+fcn = {@mvLinkedTipsButtonUp, dcmode.WindowButtonUpFcn, ui.dcm, {}};
+dcmode.WindowButtonUpFcn = fcn;
+% Set key press function
+fcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
+dcmode.KeyPressFcn = fcn;
 
-    % Initial text and edit box size and options
-    txtopt = {'Position', [0 0 75 txtedt_h/2]};
-    editopt = {'Position', [0 0 75 txtedt_h/2], 'String', 'Empty', 'Enable', 'inactive'};
-
-    if in.Results.DataBoxFromAxes % user setting to use figure axes data
-        axdat = getAxesData(xplr.ax(a), xplr.ln);
-        if isempty(in.Results.DataBoxFromUser) || isempty(in.Results.DataBoxFromUser{a})
-            uispec{a} = axdat;
-        else
-            uispec{a} = [axdat, in.Results.DataBoxFromUser{a}];
-        end
-    end
-
-    % Make the text/edit pair
-    [ui.ax(a).txt, ui.ax(a).edt] = makeValueDispBar(xplr.ax(a), uispec{a}, txtedtmarg, txtopt, editopt);
-
-end
-
-% Assign user callback functions to push buttons
-for pb = 1:size(in.Results.pbtnfcn,1)
-    ui.fig.pbtn(pb).Callback = {@ pbtnCallback, ui, slct, in.Results.pbtnfcn(pb,2:end)};
-end
-
-% Assign ButtonDownFcn to selectable objects in figures
-for ob = 1:length(slct)
-    % Pass structs with selected point information (slct) and updatable ui 
-    % objects (ui). Pass index of current selectable object.
-    slct(ob).xplobj.ButtonDownFcn = {@ lnChoosePnt, ob, slct, ui, in.Results.SelectionLinkAxes};
-end
+% --- Assign UpdateFcn to data cursor mode object --- %
+ui.dcm.UpdateFcn = {@dcmUpdate, ui};
 
 %% --- Finalize Figure Properties --- %%
+ui.dcm.Enable = 'on'; % turn data cursor mode on
+
 % Reset units on figure and all figure children
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
@@ -304,120 +264,64 @@ end
 
 %% --- Functions --- %%
 % --- Getters --- %
-function [lns] = getExplorableLines(fig, lns)
-% Gets axes for line/contours/surfaces etc. passed as arguments to
-% exploreResults and checks that they all belong to the figure <fig>.
+function [charts] = getAllExplorableCharts(fig)
+% Returns all axes children of explorable types
 
-if isempty(lns)
-    ch = findobj(fig.Children, 'flat', '-not', 'Type', 'colorbar');
-    lns = gobjects(length(ch),1);
-    for c = 1:length(ch)
-        tmp = findobj(ch(c).Children, 'flat', '-not', 'Type', 'text');
-        lns(c) = tmp(end);
-    end
-end
+ch = findobj(fig.Children, 'flat', 'Type', 'axes', '-or', ...
+                                   'Type', 'polaraxes', '-or', ...
+                                   'Type', 'geoaxes');
+charts = findobj([ch.Children], 'flat', '-not', {'Type', 'text', '-or', 'Type', 'light'});
 
 end
 
-function [axs] = getExplorableAx(fig, lns)
-% Gets axes for line/contours/surfaces etc. passed as arguments to
-% exploreResults and checks that they all belong to the figure <fig>.
+function [pos, ind] = getLeftChild(parent, unit, prop)
+% Gets leftmost child object
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
-axsall = gobjects(length(lns),1); % holds an axes for each ln, some will be duplicates
-for n = 1:length(lns)
-    if ~isequal(ancestor(lns(n), 'figure'), fig)
-        error(['The gobject ' lns(n).DisplayName 'is not part of the main ' ...
-               'figure. All exploreable lines must be on the same figure'])
-    end
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
 
-    axsall(n) = ancestor(lns(n), 'axes');
+position = getAsMat(children, prop); % all positions
+[pos,ind] = min(position(:,1)); % minimum x-position and child index
+
+if ~iscell(oldunit)
+    oldunit = {oldunit};
 end
-axssort = unique(axsall); % No duplicates but we must order these correctly
-
-% Loop over all children of parent figure
-axs = gobjects(length(axssort),1);
-ca = 1; % counter
-for a = length(fig.Children):-1:1
-% We loop backwards because figure children are in reverse order of 
-% creation, and it's easiest for the user to require their data is 
-% organized in order of creation.
-    if ismember(fig.Children(a),axssort)
-        axs(ca) = fig.Children(a);
-        ca = ca + 1;
-    end
-end
+set(children, {'Units'}, oldunit); % reset units
 
 end
 
-function [figdat] = getAxesData(ax, lns)
-% Gets explorable (selectable) data and labels from an axes. <lns> is a
-% list of selectable line objects.
+function [pos, ind] = getBottomChild(parent, unit, prop)
+% Gets lowest child object
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
-c = 1; % counter
-figdat = cell(1,1);
-for n = 1:length(ax.Children) % loop over lines on the axes
-    ln = ax.Children(n);
-    if ismember(ln, lns)
-        % Get x and y data
-        if any(strcmp(ln.Type, {'contour','surface'})) && isvector(ln.XData)
-            [x,y] = meshgrid(ln.XData,ln.YData);
-            figdat(c:c+3) = {ax.XLabel.String, x, ax.YLabel.String, y};
-        else
-            figdat(c:c+3) = {ax.XLabel.String, ln.XData, ax.YLabel.String, ln.YData};
-        end
-        c = c+4;
-        % Get z data if present
-        if ~isempty(ln.ZData)
-            figdat(c:c+1) = {ax.ZLabel.String, ln.ZData};
-            c = c+2;
-        end
-    end
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
+
+position = getAsMat(children, prop); % all positions
+[pos,ind] = min(position(:,2)); % minimum x-position and child index
+
+if ~iscell(oldunit)
+    oldunit = {oldunit};
 end
+set(children, {'Units'}, oldunit); % reset units
 
 end
 
-function [subch] = getSubPlotInd(ch_pos)
-% Gets the subplot row and column for the graphical object positions passed
-% in <ch_pos>.
+function [pos, ind] = getTopChild(parent, unit, prop)
+% Gets lowest child object
+children = findobj(parent.Children, 'flat', '-property', prop); % all children
 
-nch = size(ch_pos,1);
-subch = cell(nch,2); % the [row col] pair each child belongs to
+oldunit = get(children, 'Units'); % to reset units
+set(children, 'Units', unit); % set units
 
-% Find unique rows and the row each child is in
-row_pos = []; % position of rows
-[~, sortind] = sort(ch_pos(:,2), 'descend'); % descending order is required for the following algorithm
-for ch = sortind'
-    % A row is 'new' if it hasn't been indexed yet, or if the vertical 
-    % position is less than the current row.
-    if ~ismembertol(ch_pos(ch,2), row_pos) && ( isempty( row_pos ) || all( ch_pos(ch,2)<row_pos ) )
-        row_pos(length(row_pos)+1,1) = ch_pos(ch,2);
-        subch{ch,1} = find( sum(ch_pos(ch,[2 4])) > row_pos );
-    else
-        subch{ch,1} = find( sum(ch_pos(ch,[2 4])) > row_pos );
-    end
+position = getAsMat(children, prop); % all positions
+[pos,ind] = max(position(:,2) + position(:,4)); % maximum y-position and child index
+
+if ~iscell(oldunit)
+    oldunit = {oldunit};
 end
-
-% Find unique rows and the row each child is in
-col_pos = []; % position of cols
-[~, sortind] = sort(ch_pos(:,1), 'descend'); % descending order is required for the following algorithm
-for ch = sortind'
-    % A column is 'new' if it hasn't been indexed yet, or if the horizontal 
-    % position greater than the current column.
-    if ~ismembertol(ch_pos(ch,1), col_pos) && ( isempty( col_pos ) || all( ch_pos(ch,1)<col_pos ) )
-        col_pos(length(col_pos)+1,1) = ch_pos(ch,1);
-        subch{ch,2} = find( sum(ch_pos(ch,[1 3])) > col_pos );
-    else
-        subch{ch,2} = find( sum(ch_pos(ch,[1 3])) > col_pos );
-    end
-end
-
-% Reverse order of columns, the above algorithm requires them to be found
-% in the wrong order.
-ncol = max(cell2mat(subch(:,2)));
-cols = ncol:-1:1;
-for ch = 1:size(subch,1)
-    subch{ch,2} = cols(subch{ch,2})';
-end
+set(children, {'Units'}, oldunit); % reset units
 
 end
 
@@ -433,350 +337,774 @@ end
 
 end
 
-function [pos, ind] = getLeftChild(parent, unit)
-% Gets leftmost child object
-nch = length(parent.Children);
-pos = zeros(nch,1);
-for ch = 1:nch
-    oldunit = parent.Children(ch).Units; % to reset units
-    parent.Children(ch).Units = unit; % set units
+function [lnkdt] = getLinkedTips(fig)
+% Gets linked tips cell array from dcmode window button down function
+% arguments.
 
-    pos(ch) = parent.Children(ch).Position(1); % get horizontal position
-
-    parent.Children(ch).Units = oldunit; % reset units
-end
-[pos,ind] = min(pos);
-
+% getuimode() is an undocumented function and may change. Call copied from:
+%   %matlabroot%/toolbox/matlab/graphics/datacursormode.m@localGetMode()
+dcmode = getuimode(fig, 'Exploration.Datacursor');
+if ~isempty(dcmode)
+    lnkdt = dcmode.WindowButtonDownFcn{4};
+else % if the figure is being closed return an empty cell
+    lnkdt = {};
 end
 
-function [pos, ind] = getBottomChild(parent)
-% Gets lowest child object
-nch = length(parent.Children);
-pos = zeros(nch,1);
-for ch = 1:nch
-    oldunit = parent.Children(ch).Units; % to reset units
-    parent.Children(ch).Units = unit; % set units
-
-    pos(ch) = parent.Children(ch).Position(2); % get horizontal position
-
-    parent.Children(ch).Units = oldunit; % reset units
 end
-[pos,ind] = min(pos);
+
+% --- Setters --- %
+function [] = setLinkedTips(fig, pbtn, lnkdt)
+% Update <lnkdt> argument in figure and mode callbacks
+
+% --- Update figure callback arguments --- %
+disableFigFcnListener(fig);
+fig.WindowButtonDownFcn{end}{4} = lnkdt;
+fig.WindowButtonUpFcn{end}{4} = lnkdt;
+fig.KeyPressFcn{end}{4} = lnkdt;
+
+% --- Update uimode callback arguments --- %
+dcmode = getuimode(fig, 'Exploration.Datacursor');
+dcmode.WindowButtonDownFcn{4} = lnkdt;
+dcmode.WindowButtonUpFcn{4} = lnkdt;
+dcmode.KeyPressFcn{4} = lnkdt;
+
+% --- Update pushbutton callback arguments --- %
+for p = pbtn
+    if isgraphics(p)
+        p.Callback{4} = lnkdt;
+    end
+end
+
+end
+
+% --- Checkers --- %
+function [] = checkCharts(charts, fig)
+% Checks that all <charts> belong to <fig>.
+for c = charts(:)'
+    if ~isequal(ancestor(c, 'figure'), fig)
+        error(['The gobject ' c.DisplayName 'is not part of the ' ...
+               'figure. All exploreable charts must be on the same figure.'])
+    end
+end
 
 end
 
 % --- Makers --- %
-function [txt, edt] = makeValueDispBar(ax, tedat, temarg, varargin)
-% Makes a bar of labeled edit fields under the given axes
+function [dt] = makeDataCursor(dcm, target, index, properties)
+% Makes a datatip at the specificed index on the target graphics object.
 
-% Handle optional arguments
-%             { txtopt, editopt }
-default_opt = { {}    , {}      };
-% Overwrite defaults
-default_opt(1:length(varargin)) = varargin;
-% Assign to pretty variable names
-[txtopt, editopt] = default_opt{:};
-
-% Make text/edit pairs for each axes
-txt = gobjects(1,length(tedat)/2); edt = txt; % preinitialize
-for n = 1:length(tedat)/2
-
-    % Make edit box label
-    if n > 1 % place next to last text box
-        txt(n) = makePairedText(txt(n-1), temarg, [txtopt, {'String', tedat{2*n-1}}]);
-    else % else place under axes
-        txt(n) = makePairedText(ax, temarg, [txtopt, {'String', tedat{2*n-1}}]);
-    end
-
-    % Make the paired edit box
-    edt(n) = makePairedEdit( txt(n), [editopt, {'Userdata', tedat{2*n}}] );
-
-    % Set units to normalized
-    txt(n).Units = 'normalized'; edt(n).Units = 'normalized';
-
-end
-
-end
-
-function [txt] = makePairedText(anchor, marg, opt)
-% Places and sizes initial text box label for edit box to go underneath
-fig = ancestor(anchor,'figure');
-
-% Get max TightInset for this row so all txtedt pairs are aligned
-if isgraphics(anchor,'axes')
-    figax = findobj(fig.Children, 'Type', 'axes');
-
-    ax_pos = getAsMat(figax, 'Position');
-    ax_sub = getSubPlotInd(ax_pos); % subplot-like indices for each axes
-    ax_row = cellfun(@max, ax_sub(:,1)); % for our purposes we only want the lowest row each plot is part of
-
-    rowax = figax( ax_row == ax_row(figax==anchor) );
-    tins = max(getAsMat(rowax, 'TightInset'), [], 1);
-end
-
-% Make text object
-txtset = [{fig, 'Style', 'text', 'Units', 'pixels'}, opt];
-txt = uicontrol(txtset{:});
-
-% Set label size and position relative to associated axes and previous
-% labels
-
-chkExtent(txt); % ensure string doesn't leave box
-txt.Position(4) = txt.Extent(4); % remove vertical padding
-
-txt.Units = 'pixels'; 
-tpos = txt.Position;
-
-% If an axes is passed as the anchor set below left corner, if a txt object
-% set beside.
-unit = anchor.Units; anchor.Units = 'pixels';
-if isgraphics(anchor,'axes')
-    vert = anchor.Position(2) - tins(2) - marg(4) - tpos(4); % set pair below axes
-    horz = anchor.Position(1) + marg(1); % set pair on left plot edge
+% Get the cursor position in data units
+if isempty(target.ZData)
+    % Reconsider doing things this way, it requires constructing a cell 
+    % array out of the plot data. Alternative: write a function to do the
+    % same thing as ind2pnt but using target data instead of a cell array.
+    pnt = ind2pnt(target, {target.XData, target.YData}, index);
 else
-    vert = anchor.Position(2); % set pair at same height as last pair
-    horz = sum(anchor.Position([1 3])) + sum(marg([1 3])); % set pair next to last pair
-end
-anchor.Units = unit;
-
-% Finally set the position
-txt.Position = [horz vert tpos(3:4)];
-
+    pnt = ind2pnt(target, {target.XData, target.YData, target.ZData}, index);
 end
 
-function [edt] = makePairedEdit(txt, edtopt)
-% Places an edit box underneath a text field
-fig = ancestor(txt,'figure');
+% Get cursor position in pixels
+units = get( target.Parent, 'Units' ); % store fig units
+set( target.Parent, 'Units', 'pixels' ); % set to pixels
 
-% Make edit box
-editset = [{fig, 'Style', 'edit', 'Units', 'pixels'}, edtopt];
-edt = uicontrol(editset{:});
+figpnt = data2fig(target.Parent, pnt); % get position
+dt = dcm.createDatatip(target, figpnt);
 
-% Set position of edit box relative to label
-edt.Units = txt.Units;
-tpos = txt.Position;
-epos = edt.Position;
-dif3 = tpos(3) - epos(3); % to keep label and box centred
-edt.Position = [tpos(1)+dif3/2 tpos(2)-epos(4) epos(3:4)];
+set( target.Parent, 'Units', units ); % % reset units
+
+% Sometimes data2fig selects the wrong point. This can be due to rounding
+% in createDatatip, or data2fig not accounting for all
+% transformations for 3D plots (a surprisingly difficult topic). Too fix 
+% this we need to correct the point using increment functions. This should 
+% never need to increment very many steps, unless the grid is extremely 
+% fine compared to the figure size.
+incrementCursorToIndex(dt.Cursor, index);
+
+% % Create a copy of the context menu for the datatip:
+% set(dc,'UIContextMenu',dcm.UIContextMenu);
+% set(dc,'HandleVisibility','off');
+% set(dc,'Host',target);
+% set(dc,'ViewStyle','datatip');
+% 
+% % Set the data-tip orientation to top-right rather than auto
+% set(dc,'OrientationMode','manual');
+% set(dc,'Orientation','top-right');
+% 
+% % Update the datatip marker appearance
+% set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
+%     'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
+% 
+% dc.update([x,y,1; x,y,-1]);
+% dcm.updateDataCursors
+% dcm.editUpdateFcn
 
 end
 
 % --- Utility --- %
-function [] = chkExtent(txt)
-% Checks that the extent of the string in a text object does not exceed the
-% size. Because the 'Extent' property doesn't consider automatic string
-% wrap this function doesn't either.
-
-unit = txt.Units;
-txt.Units = 'pixels';
-
-% Width first - get size difference
-dif3 = txt.Extent(3) - txt.Position(3) + 3; % Include some padding
-% Adjust box size accordingly
-if dif3 > 0
-    txt.Position(3) = txt.Position(3) + dif3;
+function [] = disableFigFcnListener(fig)
+% This uses undocumented functionality, see link below if it breaks. We
+% need to disable some listeners so that we can change the button down
+% function of the figure and interject with our own code.
+% https://undocumentedmatlab.com/blog/enabling-user-callbacks-during-zoom-pan
+hManager = uigetmodemanager(fig);
+try
+    set(hManager.WindowListenerHandles, 'Enable', 'off');  % HG1
+catch
+    [hManager.WindowListenerHandles.Enabled] = deal(false);  % HG2
 end
-% Set the height likewise
-dif4 = txt.Extent(4) - txt.Position(4) + 3;
-if dif4 > 0
-    txt.Position(4) = txt.Position(4) + dif4;
-end
-
-txt.Units = unit; % reset units
 
 end
 
-function [ax_sub_new] = assignCBSubPlotInd(children, ax_sub, cbmap)
-% Assign colorbars the same row and column as their associated axes.
+function [pnt] = ind2pnt(chart, data, index)
+% Converts linear indices into the corresponding data point. This function
+% accounts for gridded data. If the data are from a meshgrid object
+% (surface or volumetric) then x, y, and z may be given as vectors. If this
+% is the case it's assumed this spatial information comes first, and that
+% the first non-vector data is the levels.
 
-n = 0; % offset
-ax_sub_new = cell(length(children),2);
-for c = 1:length(children)
-    if cbmap(c)
-        % Hidden colorbar property 'Axes' used
-        ax_sub_new(c,:) = ax_sub( children(c).Axes==children(~cbmap),: );
-        n = n + 1;
+pnt = zeros(1,length(data)); % holds the point to return
+
+% If the line doesn't use meshgrids then ind applies directly and we return
+% early.
+if ~any(strcmp(chart.Type, {'contour', 'surface'}))
+    pnt = cellfun(@(C) C(index), data);
+    return;
+end
+
+% If there is potential for gridded data then we need to check whether
+% spatial information is gridded or still a vector. In either case we will
+% return a vector with an index for each entry in <data>.
+isvec = cellfun(@(C) isvector(C), data);
+if any(isvec)
+% The spatial data is in vector form. Note that this assumes the user
+% provides only data with the same dimensions as the level data, which 
+% they should.
+    % Get subscript indices of point to return.
+    levi = find(~isvec,1); % index of 'level' data
+    sub = zeros(1,length(data));
+    if levi < 4
+        [sub(2), sub(1)] = ind2sub(size(data{levi}), index);
     else
-        ax_sub_new(c,:) = ax_sub(c-n,:);
+        [sub(2), sub(1), sub(3)] = ind2sub(size(data{levi}), index);
     end
+    sub(levi:end) = index; % the level data is gridded, use linear index
+
+else
+% The spatial data is in matrix form. Note that this assumes the user
+% provides only data with the same dimensions as the level data, which 
+% they should.
+    sub = zeros(1,length(data));
+    sub(:) = index;
+end
+
+for p = 1:length(data)
+    pnt(p) = data{p}(sub(p));
+end
+
+end
+
+function [ind] = pnt2ind(chart, pnt)
+% Uses X, Y, and ZData in a chart to find the associated index of a given
+% point. Will always return the linear index matching the ZData, even if X
+% and Y are vectors.
+
+if any(strcmp(chart.Type, {'contour', 'surface'}))
+% Data is a grid
+    % We must search the X and Y data for subscripts because ZData may not 
+    % be unique.
+    % Get x index
+    if isvector(chart.XData) % XData is a vector
+        x = find(chart.XData == pnt(1), 1);
+    else % XData is a nd grid
+        x = find(chart.XData(1,:) == pnt(1), 1);
+    end
+    % Get y index
+    if isvector(chart.YData) % YData is a vector
+        y = find(chart.YData == pnt(2), 1);
+    else % XData is a nd grid
+        y = find(chart.YData(:,1) == pnt(2), 1);
+    end
+
+    % Convert to linear index
+    ind = sub2ind(size(chart.ZData),y,x);
+else
+% Data is a 1D sequence.
+    ind = find(chart.XData == pnt(1), 1);
+end
+
+end
+
+function [pntf] = data2fig(ax, pnt)
+% Converts data coordinates in <pnt> on an axes to equivalent
+% coordinates in the figure window with the same units as <ax>. This code 
+% is influenced by (but not copied from) the excellent script ds2fig() by 
+% MinLong Kwong on file exchange. It gets a reasonable approximation, but
+% isn't perfect. The results are corrected later.
+%
+% Using third party functions - as a comparison for bug fixing
+% [pntf(1), pntf(2)] = ds2fig(ax, pnt(1), pnt(2), pnt(3));
+% pntf = pntf.*ax.Parent.Position(3:4);
+% return;
+
+% If pnt is 2D we set the z coordinate to 0.
+if length(pnt) == 2
+    pnt = [pnt 0];
+end
+
+% Get bounding box of projection from axis limits. We will project this
+% into our 2D data space to get the 2D axis limits.
+box3D = [ax.XLim(1), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(1), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(1), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(1), ax.YLim(2), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(1), ax.ZLim(2), 1; ...
+         ax.XLim(2), ax.YLim(2), ax.ZLim(1), 1;]';
+
+% Data stretching is accounted for by DataAspectRatio.
+dScl = [ax.DataAspectRatio, 1]';
+
+% Get view transformation matrix. This will project our 3D data into 2D
+% space.
+if strcmp(ax.Projection, 'orthographic')
+% Orthographic project is used
+    d2f = viewmtx(ax.View(1),ax.View(2));
+else
+% Perspective projection is used
+    dnorm = [diff(ax.XLim), diff(ax.YLim), diff(ax.ZLim)];
+    d2f = viewmtx(ax.View(1),ax.View(2),ax.CameraViewAngle,ax.CameraTarget./dnorm);
+end
+
+% Transform bounding box to 2D space
+% We scale the 3D box by the PlotBoxAspectRatio then transform it to the 2D
+% space. The same procedure will be followed for the pnt.
+box3DTrans = d2f*( box3D./dScl );
+box3DTrans(1:3,:) = box3DTrans(1:3,:)./box3DTrans(4,:); % scale by the homogenous vector for perspective projection
+% Each column of box2D is a pair of 2D axis limits so that 
+% box2D = [xlim_lo, ylim_lo; xlim_hi, ylim_hi]
+box2D = [min(box3DTrans(1:2,:),[],2), max(box3DTrans(1:2,:),[],2)]';
+
+% Get pnt in 2D space
+% We add the 1 to account for the homogenous vector, then scale as with
+% box3D and transform the point to 2D space. The third element of pnt2D is
+% effectively a measure of "depth" into the screen.
+pnt2D = d2f*( [pnt 1]'./dScl );
+
+% Convert to figure space
+pos = ax.Position;
+
+% Account for the 2D box aspect ratio not filling the position rectangle.
+ARmodes = {ax.PlotBoxAspectRatioMode, ax.DataAspectRatioMode};
+boxAR = diff(box2D(:,1))/diff(box2D(:,2));
+posAR = pos(3)/pos(4);
+if any(strcmp(ARmodes, 'manual')) && posAR < boxAR
+% Adjust y-pos
+    d = pos(4) - pos(3)/boxAR;
+    pos(2) = pos(2) + d/2;
+    pos(4) = pos(4) - d;
+elseif any(strcmp(ARmodes, 'manual')) && posAR > boxAR
+% Adjust x-pos
+    d = pos(3) - pos(4)*boxAR;
+    pos(1) = pos(1) + d/2;
+    pos(3) = pos(3) - d;
+end
+
+pntax = ( (pnt2D(1:2)'/pnt2D(4) - box2D(1,:))./diff(box2D) ); % position of point normalized to 2D plot box
+pntf = pos(1:2) + pos(3:4).*pntax;
+
+end
+
+function [] = rmCursors(~, ~, dcm, dcs)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% cursors.
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+% 
+% dcm:
+%   Datacursormanager object.
+% 
+% dc:
+%   Array of data cursors to be removed.
+
+for dc = dcs(:)'
+    dcm.removeDataCursor(dc)
+end
+
+end
+
+function [] = rmCursorsNoLink(~, ~, dcm, dt)
+% Invokes the datacursormanager.removeCursor function to remove an array of
+% datatips after disabling the delete callback function
+% 
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+% 
+% dcm:
+%   datacursormanager object.
+% 
+% dt:
+%   Array of datatips to be removed.
+
+set(dt, 'DeleteFcn', []);
+rmCursors([], [], dcm, [dt.Cursor])
+
+end
+
+function [] = mvCursors(~,~, dcs, cur)
+% Invokes the datacursor.moveTo function to move an array of cursors to the
+% same index on their sources as the cursor <cur>
+%
+% Input
+% ~: 
+%   First two arguments are placeholders for when this function is set as a
+%   callback.
+% 
+% dc:
+%   Array of data cursors to be moved.
+% 
+% cur:
+%   Cursor whose data index to match.
+
+ind = cur.DataIndex;
+for dc = dcs(:)'
+    if dc.DataIndex == ind
+    % If the index hasn't changed then we don't need to move this tip.
+        continue;
+    end
+
+    if isempty(dc.DataSource.ZData)
+        % Reconsider doing things this way, it requires constructing a cell 
+        % array out of the plot data. Alternative: write a function to do the
+        % same thing as ind2pnt but using target data instead of a cell array.
+        pnt = ind2pnt(dc.DataSource, {dc.DataSource.XData, dc.DataSource.YData}, ind);
+    else
+        pnt = ind2pnt(dc.DataSource, {dc.DataSource.XData, dc.DataSource.YData, dc.DataSource.ZData}, ind);
+    end
+
+    units = dc.DataSource.Parent.Units;
+    dc.DataSource.Parent.Units = 'pixels';
+
+    % Because Matlab places and moves datatips on the point closest to the 
+    % camera we need to make sure that the axes we are placing/moving this
+    % point on have the same view angle.
+    curview = get(ancestor(cur.DataSource,'axes'), 'View');
+    dcview = get(ancestor(dc.DataSource,'axes'), 'View');
+    if any(curview ~= dcview)
+        set(ancestor(dc.DataSource,'axes'), 'View', curview);
+    end
+
+    figpnt = data2fig(dc.DataSource.Parent, pnt);
+    dc.moveTo(figpnt);
+
+    if any(curview ~= dcview)
+        set(ancestor(dc.DataSource,'axes'), 'View', dcview);
+    end
+
+    dc.DataSource.Parent.Units = units;
+
+    % Sometimes data2fig selects the wrong point. This can be due to rounding
+    % in createDatatip, or data2fig not accounting for all
+    % transformations for 3D plots (a surprisingly difficult topic). Too fix 
+    % this we need to correct the point using increment functions. This should 
+    % never need to increment very many steps, unless the grid is extremely 
+    % fine compared to the figure size.
+    incrementCursorToIndex(dc, ind);
+end
+
+end
+
+function [] = mvLinkedTips(linkedtips, curtip)
+% Moves all tips linked to the current datatip to the same index on their
+% source.
+% 
+% Input
+% linkedtips: 
+%   Cell array where each element is a list of linked datatips.
+% 
+% curtip:
+%   Current tip in the figure window.
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Is DataIndex equal for the tips?
+    DataIndices = arrayfun(@(A) A.DataIndex, [linkedtips{cind}.Cursor]);
+    if ~all( DataIndices == DataIndices(1) )
+        rtind = linkedtips{cind} ~= curtip; % remaining tips
+        mvCursors([], [], [linkedtips{cind}(rtind).Cursor], curtip.Cursor); % move tips linked to curtip
+    end
+end
+
+end
+
+function [] = mvSrcLinkedTips(linkedtips, curtip, xplcharts)
+% If the source of the current cursor has changed then its linked tips are 
+% moved to the remaining sources. This algorithm is fast enough for
+% reassigning a few tips, but can be made much more efficient if required.
+% 
+% Input
+% linkedtips: 
+%   Cell array where each element is a list of linked datatips.
+% 
+% curtip:
+%   Current tip in the figure window.
+% 
+% xplcharts:
+%   List of selectable charts
+
+cind = cellfun(@(C) any(ismember(C, curtip)), linkedtips); % cell index of tips linked to curtip
+
+if any(cind)
+    % Are all explorable sources covered?
+    sources = arrayfun(@(A) A.DataSource, [linkedtips{cind}.Cursor], 'UniformOutput', false); % sources of linked tips
+    cursrc = curtip.Cursor.DataSource; % source of current tip
+
+    % Find which xplcharts have been used
+    xplused = false(length(xplcharts),1);
+    for m = 1:length(xplcharts)
+        X = xplcharts(m);
+
+        for S = sources
+            if X == S{1}
+                xplused(m) = true;
+                break;
+            end
+        end
+    end
+
+    curxpl = xplcharts == cursrc; % current xplchart
+    if ~all(xplused) % if all xplcharts aren't used
+        xplused = curxpl; % reset xplused
+        curlnk = linkedtips{cind} == curtip; % find current tip in linkedtips
+        % Assign cursors to remaining data sources
+        for tip = linkedtips{cind}(~curlnk)
+            x = find(~xplused,1); % location of first unused source
+            tip.DataSource = xplcharts(x);
+            xplused(x) = true;
+        end
+    end
+
+end
+
+end
+
+function [] = incrementCursorToIndex(cursor, index)
+% Increments data cursor to <ind>
+% 
+% Input
+% cursor:
+%   Cursor object to increment.
+% 
+% index:
+%   Index to increment to.
+
+% If indices are already the same, return
+if cursor.DataIndex == index
+    return;
+end
+
+source = cursor.DataSource;
+
+% Get the x and y indices
+if any(strcmp(source.Type, {'contour', 'surface'}))
+    [ytrue, xtrue] = ind2sub(size(source.ZData),index);
+    [y, x] = ind2sub(size(source.ZData),cursor.DataIndex);
+else
+    xtrue = index;
+    ytrue = index;
+    y = cursor.DataIndex;
+    x = index; % it's not a grid, we only need to increment one dimension
+end
+
+% Get distance to increment
+dx = xtrue - x;
+dy = ytrue - y;
+
+% Increment tip set distance
+for inc = x:sign(dx):xtrue-sign(dx) % number of increments one less than abs(dx)
+    if dx < 0
+        direction = 'left';
+    else
+        direction = 'right';
+    end
+    cursor.increment(direction);
+end
+for inc = y:sign(dy):ytrue-sign(dy) % number of increments one less than abs(dy)
+    if dy < 0
+        direction = 'down';
+    else
+        direction = 'up';
+    end
+    cursor.increment(direction);
 end
 
 end
 
 % --- Callbacks --- %
-function [] = lnChoosePnt(src, event, n, slct, ui, lnksel)
-% Assigned as ButtonDownFcn to a line to select nearest point when line is
-% clicked
-%
-% Input
-%   n: the index of the selected object in slct
-%   slct: the select struct defined in the main function. This struct will
-%         hold the index of the selected points
-%   ui: the ui struct defined in the main function
-%   lnksel: the option to link selections on all selectable lines
+function str = dcmUpdate(dt, eobj, ui)
+% Builds string for data cursor display.
 
-ax = ancestor(slct(n).xplobj, 'axes'); % Get the parent axes
-fig = ancestor(ax, 'figure'); % Get the parent figure
+% Get index of selected object
+s = [ui.xpl.chart] == eobj.Target;
 
-% Check if the axes holds 3D information
-is3D = false;
-if ~isempty(slct(n).xplobj.ZData) && ~strcmp(slct(n).xplobj.Type, 'contour')
-    is3D = true;
+% Get data point
+pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
+
+% Make string of data to display
+str = cell(1,length(ui.xpl(s).data));
+try % >= 20XXx
+    ui.dcm.Interpreter;
+    for d = 1:length(ui.xpl(s).data)
+        str{d} = [ui.xpl(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
+    end
+catch % <= 20XXx
+    dt.TextColor = [0.3 0.6 0.3];
+    dt.FontWeight = 'bold';
+    for d = 1:length(ui.xpl(s).data)
+        str{d} = [ui.xpl(s).data{d,1} ' ' num2str(pnt(d),4)];
+    end
 end
 
-if strcmp(fig.SelectionType,'normal') % left click
+end
 
-    % Get plot-frame intersects of mouse
-    pos = ax.CurrentPoint;
+function [] = lnSelectPnt(fig, event, fcn, ui, lnkdt, opt)
+% Callback interjected before the standard matlab datatip mode
+% WindowButtonDownFcn callback is executed and allows us to manage the 
+% datatips directly.
 
-    % Normalize by figure limits before search
-    xn = abs( diff(ax.XLim) );
-    x = slct(n).xplobj.XData/xn; 
+% Run the original callback
+if isa(fcn,'function_handle')
+   fcn(fig, event);
+end
 
-    yn = abs( diff(ax.YLim) );
-    y = slct(n).xplobj.YData/yn;
+% Get index of selected object
+% Note: undocumented event property "HitObject"
+xchts = [ui.xpl.chart];
+s = xchts == event.HitObject;
 
-    zn = abs( diff(ax.ZLim) );
-    z = slct(n).xplobj.ZData/zn; 
+% If an explorable object was hit, we continue with selection type "normal"
+% or "extend" if the modifier is "shift" or "alt". This means a new data 
+% cursor was created or that one was moved.
+isXplHit = any(s);
+% Adapted from %matlabroot%/toolbox/matlab/graphics/
+%               datacursormanager.m@localWindowButtonDownFcn()
+mod = get(fig,'CurrentModifier');
+isAddSelType = strcmp(fig.SelectionType, 'normal');  % selection type is 'normal'?
+isAddMod = numel(mod)==1  && strcmp(fig.SelectionType, 'extend') ...
+    && any( strcmp(mod{1}, {'shift','alt'})  ); % selection type is 'extend' with 'shift' or 'alt'?
+if ~isXplHit || ~( isAddSelType || isAddMod )
+    return; % return if we are sure no tip was made
+end
 
-    pos = pos./[xn yn zn; xn yn zn];
-    posln = (pos(2,:)-pos(1,:))./norm(pos(2,:)-pos(1,:)); % line through both intersects
+% Store the current cursor to reset after
+curcur = ui.dcm.CurrentCursor;
+alldt = findall(fig.Children, 'Type', 'hggroup'); % all datatips
 
-    % 'contour' and 'surface' plots may have gridded data
-    if any( strcmp(slct(n).xplobj.Type, {'contour','surface'}) )
-        % In this case 'z' will always be gridded, 'x' and 'y' may not
-        if isvector(x)
-            [x, y] = meshgrid(x, y);
+% Even if the correct key combinations were pressed it may not have 
+% resulted in a new data tip. Determine if a new cursor was added.
+isAdded = false;
+if opt.SelectionLinkCharts
+    if numel(alldt) < numel(ui.xpl) || ( numel([lnkdt{:}]) < numel(alldt) )
+        isAdded = true;
+    end
+end
+
+% Link Axes
+if opt.SelectionLinkCharts && isAdded
+    % Get index of point
+    index = curcur.DataIndex;
+
+    % Make Linked data tips
+    cchts = [alldt.DataSource]; % cursor charts
+    newdt = gobjects(0);
+    for cht = xchts(~s) % loop over "non-hit" explorable charts
+
+        % Because Matlab places and moves datatips on the point closest to the 
+        % camera we need to make sure that the axes we are placing/moving this
+        % point on have the same view angle.
+        selview = get(xchts(s).Parent, 'View');
+        makview = get(cht.Parent, 'View');
+        if any(selview ~= makview)
+            set(cht.Parent, 'View', selview);
         end
+
+        n = cchts == cht; % which datatips in <alldt> are on <cht>
+        cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
+        % Are there no tips on cht or are the tips at different indices?
+        if all(~n) || all(cindices ~= index)
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, []);
+        end
+
+        if any(selview ~= makview)
+            set(cht.Parent, 'View', makview);
+        end
+
+    end
+    alldt = [alldt; newdt'];
+
+    % Update lnktips
+    curdt = findobj(alldt,'Cursor',curcur);
+    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
+
+    % Add callbacks so that all linked tips are deleted together and moved
+    % together etc.
+    for t = 1:length(lnkdt{end})
+        rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
+        % Add delete functions to linked tips
+        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, fig, ui.dcm, ui.pbtn, lnkdt{end}(rt)};
     end
 
-    x = x(:);
-    y = y(:);
-    z = z(:);
+    % Reset current cursor
+    ui.dcm.CurrentCursor = curcur;
 
-    % Find nearest data point - certain plot types are treated differently
-    if ~is3D
-        % 2D: just find the point closest to the first intersection
-        ind = dsearchn( [ x, y ], pos(1,1:2) );
+    % Update callback args
+    setLinkedTips(fig, ui.pbtn, lnkdt)
 
+elseif opt.SelectionLinkCharts
+    % Ensure datatips move together
+    curdt = findobj(alldt,'Cursor',curcur);
+    mvSrcLinkedTips(lnkdt, curdt, xchts)
+    % We don't need to move the tips here because this is handled in the
+    % button up function. We only ensure data sources are correct.
+end
+
+% Remove extra datatips
+if false
+    % NOT YET REQUIRED
+end
+
+end
+
+function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
+% Callback function for the user push buttons. Takes the currently
+% selected point information and the user supplied function with arguments.
+% After checking that points have been properly selected will launch the 
+% user function with the first four arguments as matlab defined <src>, 
+% <event>, and exploreResults defined <ui> and <slct>.
+
+% --- Define the external information structures --- %
+% These are designed to make it easier to access selected point and all 
+% associated data.
+
+% Contains information associated with selected points data.
+slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
+
+cinfo = ui.dcm.getCursorInfo;
+for p = 1:length(cinfo)
+    % Index of chart in list of explorable charts
+    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
+
+    % Get target .(chart)
+    slct(p).chart = cinfo(p).Target;
+    slct(p).chartnum = chartnum;
+
+    % DataIndex .(index) from cursor info if available. Else find it from 
+    % cursor info .(Position).
+    if isfield(cinfo, 'DataIndex')
+        slct(p).index = cinfo(p).DataIndex;
     else
-        % 3D: find the point closest to the intersecting line
-        tol = 1e-3; % distance tolerance
-        nz = length(z);
-        %     If pos1 = pnt on line, posln = direction vector of line, xyz = point to find distance for
-        % dst = ||(pos1 - xyz) - ( (pos1 - xyz).posln )*posln||
-        xyz_d = sqrt(sum( ((pos(1,:) - [x, y, z]) - sum( (pos(1,:) - [x, y, z]).*repmat(posln,nz,1), 2 ).*repmat(posln,nz,1)).^2, 2));
-        ind = 1:nz;
-        ind = ind(ismembertol(xyz_d, min(xyz_d), tol));
-        % Of points that fit tol, choose the point closest to the screen
-        [~, ii] = min(norm(pos(1,:)' - [x(ind), y(ind), z(ind)]'));
-        ind = ind(ii);
-
+        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
     end
 
-    % Update all points when link all selections is on, otherwise just the
-    % selected point.
-    if lnksel
-        slist = 1:length(slct);
-    else
-        slist = n;
-    end
+    % Get .(point) manually
+    slct(p).point = ind2pnt(cinfo(p).Target, ui.xpl(chartnum).data(:,2), slct(p).index);
+end
 
-    % Updating points indicated above
-    for s = slist
-        % Set selected index
-        slct(s).ind = ind;
+% Get linked datatip information .(links)
+if opt.SelectionLinkCharts
+    % For each set of linked tips, get their indices in the slct struct
+    for lnk = lnkdt
+        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
 
-        % Snap to nearest data point
-        if any( strcmp(slct(s).xplobj.Type, {'contour','surface'}) )
-            if isvector(slct(s).xplobj.XData)
-                [x,y] = meshgrid(slct(s).xplobj.XData, slct(s).xplobj.YData);
-            else
-                x = slct(s).xplobj.XData;
-                y = slct(s).xplobj.YData;
-            end
-            p(1) = x(ind);
-            p(2) = y(ind);
-        else
-            p(1) = slct(s).xplobj.XData(ind);
-            p(2) = slct(s).xplobj.YData(ind);
-        end
-
-        if is3D
-            p(3) = slct(s).xplobj.ZData(ind);
-        else
-            p(3) = 0;
-        end
-
-        % Update the graphical line object for the selected point
-        if ~isempty(slct(s).pnt)
-            delete(slct(s).pnt)
-        end
-        sax = ancestor(slct(s).xplobj, 'axes');
-        slct(s).pnt = line(sax, p(1), p(2), p(3), 'DisplayName', 'Selection', 'Marker', 'o', 'MarkerSize', 6, 'MarkerFaceColor', 'm'); % TODO: allow specifying point options
-
-        % Set edit box values
-        for edt = ui.ax(s).edt
-            edt.String = num2str( edt.UserData(ind), 5 );
+        % For each ind, assign the others as links in each slct.links
+        nn = 1:length(ind);
+        for n = nn
+            slct(ind(n)).links = ind(n~=nn);
         end
     end
+end
+
+% --- Call user function --- %
+% Call the user's function and pass arguments through
+fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
-% Update structure by updating the ButtonDownFcn arguments
-for s = 1:length(slct)
-    slct(s).xplobj.ButtonDownFcn(2:end) = {s, slct, ui, lnksel};
-    if ~isempty(slct(s).pnt)
-        slct(s).pnt.ButtonDownFcn = {@ lnChoosePnt, s, slct, ui, lnksel}; % let user click on the point too
+function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
+% If click and drag is used to move a tip, we need to update tip locations 
+% on the button up action.
+
+% Run the original callback
+if isa(fcn,'function_handle')
+   fcn(src, event);
+end
+
+% If selection type is normal continue.
+if ~strcmp(src.SelectionType,'normal')
+    return;
+end
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Ensure linked tips move with current tip
+mvLinkedTips(lnkdt, curdt)
+
+end
+
+function [] = mvLinkedTipsKeyPress(src, event, fcn, dcm, lnkdt)
+% If arrow keys are used to move a tip then we need to update linked tip 
+% locations the same way.
+
+% Run the original callback
+if isa(fcn,'function_handle')
+   fcn(src, event);
+end
+
+% Exit early if invalid event data
+if ~isobject(event) || ~isvalid(event)
+    return;
+end
+
+% Do nothing if an arrow key wasn't pressed.
+if ~strcmp(event.Key, {'leftarrow','rightarrow','uparrow','downarrow'})
+    return;
+end
+direction = event.Key(1:end-length('arrow'));
+
+% Get the current datatip
+curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
+
+% Increment linked tips
+cind = cellfun(@(C) any(C == curdt), lnkdt); % cell index of tips linked to curtip
+if any(cind)
+    rtind = lnkdt{cind} ~= curdt;
+    for c = [lnkdt{cind}(rtind).Cursor]
+        c.increment(direction); % move cursor with curtip
     end
 end
 
-% Update slct structure in 'View Details' callback function
-for pb  = ui.fig.pbtn'
-    pb.Callback{3} = slct;
 end
 
-end
+function [] = rmLinkedCursors(srcdt, ~, fig, dcm, pbtns, dt)
+% Delete function callback when cursors are linked. Removes linked tips and
+% updates <lnkdt> callback argument for callback arguments.
 
-function [] = pbtnCallback(src, event, ui, slct, usrcall)
-% Callback function for the view details push button. Takes the currently
-% selected point information and the user supplied anonymous function with
-% arguments. After checking that points have been properly selected will
-% launch the user function with the first three arguments as matlab defined
-% <src>, <event>, and explore_results defined <slct>.
+    rmCursorsNoLink([], [], dcm, dt)
 
-% If points haven't all been selected do nothing.
-% TODO: if there are multiple lines on an axes does this still work?
-if ~isfield(slct, 'ind')
-    return
-end
-for p = 1:length(slct)
-    if isempty(slct(p).ind)
-        return
-    end
-end
+    % To avoid needing to update every delete callback for every datatip we
+    % will get the lnkdt variable from the mode callback arguments.
+    lnkdt = getLinkedTips(fig);
 
-% Define the extrenal information structures. These are designed to make it
-% easier to access selected point and all associated data.
+    % Remove deleted tips from lnkdt
+    cind = cellfun(@(C) any(C == srcdt), lnkdt);
+    lnkdt = lnkdt(~cind); 
 
-usrui = ui;
-usrui.xplr = struct('ln',[],'pnt',[]);
-usrslct = struct('ind', [], 'x', [], 'y', [], 'z', []);
-for p = 1:length(slct)
-    % Setup ui struct user will see
-    usrui.xplr(p).ln = slct(p).xplobj;
-    usrui.xplr(p).pnt = slct(p).pnt;
-
-    % Setup slct struct user will see
-    usrslct(p).ind = slct(p).ind;
-    usrslct(p).x = slct(p).xplobj.XData;
-    usrslct(p).y = slct(p).xplobj.YData;
-    if isprop(slct(p).xplobj, 'ZData')
-        usrslct(p).z = slct(p).xplobj.ZData;
-    end
-end
-
-% Call the user's function and pass options through
-usrcall{1}( src, event, usrui, usrslct, usrcall{2:end} );
-
+    setLinkedTips(fig, pbtns, lnkdt)
 end
