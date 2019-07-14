@@ -406,10 +406,11 @@ end
 % Get cursor position in pixels
 units = get( target.Parent, 'Units' ); % store fig units
 set( target.Parent, 'Units', 'pixels' ); % set to pixels
-figpnt = data2fig(target.Parent, pnt); % get position
-set( target.Parent, 'Units', units ); % % reset units
 
+figpnt = data2fig(target.Parent, pnt); % get position
 dt = dcm.createDatatip(target, figpnt);
+
+set( target.Parent, 'Units', units ); % % reset units
 
 % Sometimes data2fig selects the wrong point. This can be due to rounding
 % in createDatatip, or data2fig not accounting for all
@@ -689,8 +690,21 @@ for dc = dcs(:)'
     units = dc.DataSource.Parent.Units;
     dc.DataSource.Parent.Units = 'pixels';
 
+    % Because Matlab places and moves datatips on the point closest to the 
+    % camera we need to make sure that the axes we are placing/moving this
+    % point on have the same view angle.
+    curview = get(ancestor(cur.DataSource,'axes'), 'View');
+    dcview = get(ancestor(dc.DataSource,'axes'), 'View');
+    if any(curview ~= dcview)
+        set(ancestor(dc.DataSource,'axes'), 'View', curview);
+    end
+
     figpnt = data2fig(dc.DataSource.Parent, pnt);
     dc.moveTo(figpnt);
+
+    if any(curview ~= dcview)
+        set(ancestor(dc.DataSource,'axes'), 'View', dcview);
+    end
 
     dc.DataSource.Parent.Units = units;
 
@@ -904,18 +918,33 @@ end
 % Link Axes
 if opt.SelectionLinkCharts && isAdded
     % Get index of point
-    index = ui.dcm.CurrentCursor.DataIndex;
+    index = curcur.DataIndex;
 
     % Make Linked data tips
     cchts = [alldt.DataSource]; % cursor charts
     newdt = gobjects(0);
     for cht = xchts(~s) % loop over "non-hit" explorable charts
+
+        % Because Matlab places and moves datatips on the point closest to the 
+        % camera we need to make sure that the axes we are placing/moving this
+        % point on have the same view angle.
+        selview = get(xchts(s).Parent, 'View');
+        makview = get(cht.Parent, 'View');
+        if any(selview ~= makview)
+            set(cht.Parent, 'View', selview);
+        end
+
         n = cchts == cht; % which datatips in <alldt> are on <cht>
         cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
-        % Are there no tips on ln or are the tips at different indices?
+        % Are there no tips on cht or are the tips at different indices?
         if all(~n) || all(cindices ~= index)
             newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, []);
         end
+
+        if any(selview ~= makview)
+            set(cht.Parent, 'View', makview);
+        end
+
     end
     alldt = [alldt; newdt'];
 
