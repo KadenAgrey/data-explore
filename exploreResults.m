@@ -78,7 +78,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   chart from which it will be selected.
 % 
 % 
-% SelectionLinkCharts: true | false
+% SelectionLinkCharts: false | true
 %   Boolean, if true will force all explorable charts to have the same
 %   indices selected. Selecting a point on one chart will select the same 
 %   point on all charts. 
@@ -87,12 +87,15 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % 
 % SnapToDataVertex: 'on'|'off'
 %   Specified whether data cursors snap to nearest data value or appear at
-%   mouse position. From datacursormode().
+%   mouse position. From datacursormode(). The data associated with this 
+%   point will still be from the nearest point. Currently this option is 
+%   not supported when SelectionLinkCharts is on.
 %
 % DisplayStyle: 'datatip' | 'window'
 %   'datatip' displays cursor information as a text box and marker and 
 %   'window' displays cursor information in a floating window within the 
-%   figure. From datacursormode().
+%   figure. From datacursormode(). Currently this option is not
+%   supported when SelectionLinkCharts is on.
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
@@ -110,7 +113,8 @@ in = inputParser(); % initialize parser object
 
 % Validation functions
 chkCharts = @(charts) checkCharts(charts,fig);
-chkOnOff = @(s) validateString(s,{'on','off'});
+chkOnOff = @(s) any(strcmp(s,{'on','off'}));
+chkDisplay = @(s) any(strcmp(s,{'datatip','window'}));
 
 % Required
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
@@ -123,12 +127,18 @@ in.addParameter('DataFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkCharts',false); % link selected points accross all selectable objects
 % in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
 % in.addParameter('SelectionProperties', []); % properties of selection marker
-in.addParameter('SnapToDataVertex', 'off', chkOnOff); % link selected points accross all selectable objects
-in.addParameter('DisplayStyle', 'off', chkDisplay); % link selected points accross all selectable objects
+in.addParameter('SnapToDataVertex', 'on', chkOnOff); % snap datatips to data point
+in.addParameter('DisplayStyle', 'datatip', chkDisplay); % display data in window or text box
 
 in.parse(fig, pbtnfcn, varargin{:})
 
-% Check that SelectionLinkCharts is not on when SnapToDataVertex is on
+% Check that SelectionLinkCharts is not on when SnapToDataVertex is 'on' or
+% DisplayStyle is 'window'.
+if in.Results.SelectionLinkCharts && ...
+    ( strcmp(in.Results.SnapToDataVertex, 'on') || strcmp(in.Results.DisplayStyle, 'window') )
+    error(['SelectionLinkCharts can''t be activated if ' ...
+        'SnapToDataVertex is on or DisplayStyle is window.'])
+end
 
 % Pull fig out of the object for easier access
 fig = in.Results.fig;
@@ -269,6 +279,7 @@ ui.dcm.UpdateFcn = {@dcmUpdate, ui};
 
 %% --- Finalize Figure Properties --- %%
 ui.dcm.SnapToDataVertex = in.Results.SnapToDataVertex;
+ui.dcm.DisplayStyle = in.Results.DisplayStyle;
 ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Reset units on figure and all figure children
