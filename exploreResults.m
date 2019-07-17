@@ -198,8 +198,8 @@ figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window ins
 
 % --- Collection options to pass to callbacks --- %
 % Fields to pass to callbacks as options
-opt_fields = {'SelectionLinkCharts'};
-% opt_fields = {'SelectionLinkCharts','SelectionPerChart'};
+opt_fields = {'SelectionLinkCharts', 'SnapToDataVertex'};
+% opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SnapToDataVertex'};
 
 % Define struct containing options to pass to the callbacks
 opt = struct();
