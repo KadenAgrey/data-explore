@@ -684,7 +684,8 @@ end
 
 function [] = mvCursors(~,~, dcs, cur)
 % Invokes the datacursor.moveTo function to move an array of cursors to the
-% same index on their sources as the cursor <cur>
+% same index on their sources as the cursor <cur>. Also sets the
+% InterpolationFactor to be the same.
 %
 % Input
 % ~: 
@@ -734,13 +735,20 @@ for dc = dcs(:)'
 
     dc.DataSource.Parent.Units = units;
 
-    % Sometimes data2fig selects the wrong point. This can be due to rounding
-    % in createDatatip, or data2fig not accounting for all
-    % transformations for 3D plots (a surprisingly difficult topic). Too fix 
-    % this we need to correct the point using increment functions. This should 
-    % never need to increment very many steps, unless the grid is extremely 
-    % fine compared to the figure size.
-    incrementCursorToIndex(dc, ind);
+    % If SnapToDataVertex is 'on', Interpolate is 'off'
+    if strcmp(cur.Interpolate, 'off')
+        % Sometimes data2fig selects the wrong point. This can be due to rounding
+        % in createDatatip, or data2fig not accounting for all
+        % transformations for 3D plots (a surprisingly difficult topic). Too fix 
+        % this we need to correct the point using increment functions. This should 
+        % never need to increment very many steps, unless the grid is extremely 
+        % fine compared to the figure size.
+        incrementCursorToIndex(dc, ind);
+
+    % SnapToDataVertex is 'off', Interpolate is 'on'
+    else
+        dc.InterpolationFactor = cur.InterpolationFactor;
+    end
 end
 
 end
@@ -970,6 +978,12 @@ if opt.SelectionLinkCharts && isAdded
         if any(selview ~= makview)
             set(cht.Parent, 'View', makview);
         end
+
+        % --------------
+        for dt = newdt
+            dt.Cursor.InterpolationFactor = curcur.InterpolationFactor;
+        end
+        % --------------
 
     end
     alldt = [alldt; newdt'];
