@@ -530,7 +530,7 @@ end
 end
 
 function [ind] = pnt2ind(chart, pnt)
-% Uses X, Y, and ZData in a chart to find the associated index of a given
+% Uses X, Y, and ZData in a chart to find the nearest index of a given
 % point. Will always return the linear index matching the ZData, even if X
 % and Y are vectors.
 
@@ -538,24 +538,20 @@ if any(strcmp(chart.Type, {'contour', 'surface'}))
 % Data is a grid
     % We must search the X and Y data for subscripts because ZData may not 
     % be unique.
-    % Get x index
-    if isvector(chart.XData) % XData is a vector
-        x = find(chart.XData == pnt(1), 1);
-    else % XData is a nd grid
-        x = find(chart.XData(1,:) == pnt(1), 1);
-    end
-    % Get y index
-    if isvector(chart.YData) % YData is a vector
-        y = find(chart.YData == pnt(2), 1);
-    else % XData is a nd grid
-        y = find(chart.YData(:,1) == pnt(2), 1);
+
+    % Convert vector xy into gridded form.
+    if isvector(chart.XData)
+        [xg, yg] = meshgrid(chart.XData, chart.YData);
+    else
+        xg = chart.XData;
+        yg = chart.XData;
     end
 
-    % Convert to linear index
-    ind = sub2ind(size(chart.ZData),y,x);
+    % Retrieve linear index of nearest point
+    ind = dsearchn([xg(:),yg(:)], pnt(1:2));
 else
 % Data is a 1D sequence.
-    ind = find(chart.XData == pnt(1), 1);
+    ind = dsearchn(chart.XData, pnt(1));
 end
 
 end
