@@ -416,7 +416,7 @@ end
 end
 
 % --- Makers --- %
-function [dt] = makeDataCursor(dcm, target, index, properties)
+function [dt] = makeDataCursor(dcm, target, index, cprops)
 % Makes a datatip at the specificed index on the target graphics object.
 
 % Get the cursor position in data units
@@ -445,6 +445,10 @@ set( target.Parent, 'Units', units ); % % reset units
 % never need to increment very many steps, unless the grid is extremely 
 % fine compared to the figure size.
 incrementCursorToIndex(dt.Cursor, index);
+
+for p = 1:2:length(cprops)
+    dt.Cursor.(cprops{p}) = cprops{p+1};
+end
 
 % % Create a copy of the context menu for the datatip:
 % set(dc,'UIContextMenu',dcm.UIContextMenu);
@@ -1098,18 +1102,13 @@ if opt.SelectionLinkCharts && isAdded
         cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
         % Are there no tips on cht or are the tips at different indices?
         if all(~n) || all(cindices ~= index)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, []);
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, ...
+                {'InterpolationFactor', curcur.InterpolationFactor});
         end
 
         if any(selview ~= makview)
             set(cht.Parent, 'View', makview);
         end
-
-        % --------------
-        for dt = newdt
-            dt.Cursor.InterpolationFactor = curcur.InterpolationFactor;
-        end
-        % --------------
 
     end
     alldt = [alldt; newdt'];
@@ -1141,9 +1140,8 @@ elseif opt.SelectionLinkCharts
 end
 
 % Remove extra datatips
-if false
     % NOT YET REQUIRED
-end
+
 
 end
 
