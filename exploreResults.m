@@ -2,7 +2,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % exploreResults launches an interactive plot from which detailed results 
 % are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v2.0 2019.07.12
+% v2.1 2019.07.12
 % 
 % Input
 % fig: 
@@ -88,8 +88,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % SnapToDataVertex: 'on'|'off'
 %   Specified whether data cursors snap to nearest data value or appear at
 %   mouse position. From datacursormode(). The data associated with this 
-%   point will still be from the nearest point. Currently this option is 
-%   not supported when SelectionLinkCharts is on.
+%   point will still be from the nearest point. 
 %
 % DisplayStyle: 'datatip' | 'window'
 %   'datatip' displays cursor information as a text box and marker and 
@@ -107,6 +106,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   2019.05.05: Added input parsing and param/value arguments
 %   2019.05.10: Added support for multiple user push button functions
 %   2019.07.12: Switched data display to use MATLABs datatips
+%   2019.07.29: dcm properties supported as Name/Value pairs
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
