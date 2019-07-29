@@ -22,7 +22,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   cell array. Eg:
 %       pbtnfcn = {'My Button', fcn, arg1, arg2};
 %   will correspond to the user function,
-%       function argout = myFunc(src, event, ui, slct, arg1, arg2, ... )
+%       function argout = myFunc(src, event, ui, slct, arg1, arg2 )
 % 
 %   The reserved arguments are:
 %       src: matlab variable pointing to the src of the callback, which is
@@ -964,6 +964,75 @@ end
 
 end
 
+function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
+% Callback function for the user push buttons. Takes the currently
+% selected point information and the user supplied function with arguments.
+% After checking that points have been properly selected will launch the 
+% user function with the first four arguments as matlab defined <src>, 
+% <event>, and exploreResults defined <ui> and <slct>.
+
+% --- Define the external information structures --- %
+% These are designed to make it easier to access selected point and all 
+% associated data.
+
+% Contains information associated with selected points data.
+slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
+
+cinfo = ui.dcm.getCursorInfo;
+for p = 1:length(cinfo)
+    % Index of chart in list of explorable charts
+    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
+
+    % Get target .(chart)
+    slct(p).chart = cinfo(p).Target;
+    slct(p).chartnum = chartnum;
+
+    % Find .(index) from cursor info (.DataIndex) if available. Else find 
+    % it from cursor info .(Position).
+    if isfield(cinfo, 'DataIndex')
+        slct(p).index = cinfo(p).DataIndex;
+    else
+        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
+    end
+
+    % Get .(point)
+    if strcmp(opt.SnapToDataVertex, 'on')
+    % Get point from index
+        slct(p).point = ind2pnt(slct(p).chart, ui.xpl(chartnum).data(:,2), slct(p).index);
+    else
+    % If we aren't snapping to data vertex we want to find the interpolated
+    % points from the user data. We get x and y from the chart because the
+    % user may not include it in the data cell.
+        if any(strcmp(slct(p).chart.Type, {'contour', 'surface'}))
+            xq = cinfo(p).Position(1:2);
+        else
+            xq = cinfo(p).Position(1);
+        end
+        slct(p).point = interpPnt(slct(p).chart, ui.xpl(chartnum).data(:,2), xq);
+    end
+
+end
+
+% Get linked datatip information .(links)
+if opt.SelectionLinkCharts
+    % For each set of linked tips, get their indices in the slct struct
+    for lnk = lnkdt
+        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
+
+        % For each ind, assign the others as links in each slct.links
+        nn = 1:length(ind);
+        for n = nn
+            slct(ind(n)).links = ind(n~=nn);
+        end
+    end
+end
+
+% --- Call user function --- %
+% Call the user's function and pass arguments through
+fcn{1}( src, event, ui, slct, fcn{2:end} );
+
+end
+
 function [] = lnSelectPnt(fig, event, fcn, ui, lnkdt, opt)
 % Callback interjected before the standard matlab datatip mode
 % WindowButtonDownFcn callback is executed and allows us to manage the 
@@ -1075,75 +1144,6 @@ end
 if false
     % NOT YET REQUIRED
 end
-
-end
-
-function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
-% Callback function for the user push buttons. Takes the currently
-% selected point information and the user supplied function with arguments.
-% After checking that points have been properly selected will launch the 
-% user function with the first four arguments as matlab defined <src>, 
-% <event>, and exploreResults defined <ui> and <slct>.
-
-% --- Define the external information structures --- %
-% These are designed to make it easier to access selected point and all 
-% associated data.
-
-% Contains information associated with selected points data.
-slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
-
-cinfo = ui.dcm.getCursorInfo;
-for p = 1:length(cinfo)
-    % Index of chart in list of explorable charts
-    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
-
-    % Get target .(chart)
-    slct(p).chart = cinfo(p).Target;
-    slct(p).chartnum = chartnum;
-
-    % Find .(index) from cursor info (.DataIndex) if available. Else find 
-    % it from cursor info .(Position).
-    if isfield(cinfo, 'DataIndex')
-        slct(p).index = cinfo(p).DataIndex;
-    else
-        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
-    end
-
-    % Get .(point)
-    if strcmp(opt.SnapToDataVertex, 'on')
-    % Get point from index
-        slct(p).point = ind2pnt(slct(p).chart, ui.xpl(chartnum).data(:,2), slct(p).index);
-    else
-    % If we aren't snapping to data vertex we want to find the interpolated
-    % points from the user data. We get x and y from the chart because the
-    % user may not include it in the data cell.
-        if any(strcmp(slct(p).chart.Type, {'contour', 'surface'}))
-            xq = cinfo(p).Position(1:2);
-        else
-            xq = cinfo(p).Position(1);
-        end
-        slct(p).point = interpPnt(slct(p).chart, ui.xpl(chartnum).data(:,2), xq);
-    end
-
-end
-
-% Get linked datatip information .(links)
-if opt.SelectionLinkCharts
-    % For each set of linked tips, get their indices in the slct struct
-    for lnk = lnkdt
-        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
-
-        % For each ind, assign the others as links in each slct.links
-        nn = 1:length(ind);
-        for n = nn
-            slct(ind(n)).links = ind(n~=nn);
-        end
-    end
-end
-
-% --- Call user function --- %
-% Call the user's function and pass arguments through
-fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
