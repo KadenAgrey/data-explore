@@ -11,10 +11,11 @@ ylabel('y')
 zlabel('z')
 
 subplot(1,2,2)
-plot(1:100, 'o');
+surf(160*membrane(1,100), 'EdgeColor','none');
 title('Surf Plot')
 xlabel('x')
 ylabel('y')
+zlabel('z')
 
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
@@ -25,7 +26,7 @@ pbtn_callback = {'View x', @ userCallback, 'x';
                  'View z', @ userCallback, 'z'};
 
 % Finally launch the ui figure
-exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'DisplayStyle', 'window', 'SnapToDataVertex', 'off' );
+exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SnapToDataVertex', 'off'  );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, dim)

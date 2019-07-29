@@ -2,7 +2,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % exploreResults launches an interactive plot from which detailed results 
 % are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v2.0 2019.07.12
+% v2.1 2019.07.12
 % 
 % Input
 % fig: 
@@ -22,7 +22,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   cell array. Eg:
 %       pbtnfcn = {'My Button', fcn, arg1, arg2};
 %   will correspond to the user function,
-%       function argout = myFunc(src, event, ui, slct, arg1, arg2, ... )
+%       function argout = myFunc(src, event, ui, slct, arg1, arg2 )
 % 
 %   The reserved arguments are:
 %       src: matlab variable pointing to the src of the callback, which is
@@ -78,12 +78,23 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   chart from which it will be selected.
 % 
 % 
-% SelectionLinkCharts: 
+% SelectionLinkCharts: false | true
 %   Boolean, if true will force all explorable charts to have the same
 %   indices selected. Selecting a point on one chart will select the same 
 %   point on all charts. 
 % 
 % TODO: Let user specify which plots to link
+% 
+% SnapToDataVertex: 'on'|'off'
+%   Specified whether data cursors snap to nearest data value or appear at
+%   mouse position. From datacursormode(). The data associated with this 
+%   point will still be from the nearest point. 
+%
+% DisplayStyle: 'datatip' | 'window'
+%   'datatip' displays cursor information as a text box and marker and 
+%   'window' displays cursor information in a floating window within the 
+%   figure. From datacursormode(). Currently this option is not
+%   supported when SelectionLinkCharts is on.
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
@@ -95,12 +106,15 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   2019.05.05: Added input parsing and param/value arguments
 %   2019.05.10: Added support for multiple user push button functions
 %   2019.07.12: Switched data display to use MATLABs datatips
+%   2019.07.29: dcm properties supported as Name/Value pairs
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
 
 % Validation functions
 chkCharts = @(charts) checkCharts(charts,fig);
+chkOnOff = @(s) any(strcmp(s,{'on','off'}));
+chkDisplay = @(s) any(strcmp(s,{'datatip','window'}));
 
 % Required
 in.addRequired('fig', @isgraphics); % figure handle to build ui on
@@ -110,11 +124,21 @@ in.addOptional('charts', getAllExplorableCharts(fig), chkCharts); % charts to se
 % Optional Name/Value Pairs
 in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
-in.addParameter('SelectionLinkCharts',true); % link selected points accross all selectable objects
+in.addParameter('SelectionLinkCharts',false); % link selected points accross all selectable objects
 % in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
 % in.addParameter('SelectionProperties', []); % properties of selection marker
+in.addParameter('SnapToDataVertex', 'on', chkOnOff); % snap datatips to data point
+in.addParameter('DisplayStyle', 'datatip', chkDisplay); % display data in window or text box
 
 in.parse(fig, pbtnfcn, varargin{:})
+
+% Check that SelectionLinkCharts is not on when SnapToDataVertex is 'on' or
+% DisplayStyle is 'window'.
+if in.Results.SelectionLinkCharts && ...
+    ( strcmp(in.Results.SnapToDataVertex, 'on') || strcmp(in.Results.DisplayStyle, 'window') )
+    error(['SelectionLinkCharts can''t be activated if ' ...
+        'SnapToDataVertex is on or DisplayStyle is window.'])
+end
 
 % Pull fig out of the object for easier access
 fig = in.Results.fig;
@@ -174,8 +198,8 @@ figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window ins
 
 % --- Collection options to pass to callbacks --- %
 % Fields to pass to callbacks as options
-opt_fields = {'SelectionLinkCharts'};
-% opt_fields = {'SelectionLinkCharts','SelectionPerChart'};
+opt_fields = {'SelectionLinkCharts', 'SnapToDataVertex'};
+% opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SnapToDataVertex'};
 
 % Define struct containing options to pass to the callbacks
 opt = struct();
@@ -251,9 +275,11 @@ fcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
 dcmode.KeyPressFcn = fcn;
 
 % --- Assign UpdateFcn to data cursor mode object --- %
-ui.dcm.UpdateFcn = {@dcmUpdate, ui};
+ui.dcm.UpdateFcn = {@dcmUpdate, ui, opt};
 
 %% --- Finalize Figure Properties --- %%
+ui.dcm.SnapToDataVertex = in.Results.SnapToDataVertex;
+ui.dcm.DisplayStyle = in.Results.DisplayStyle;
 ui.dcm.Enable = 'on'; % turn data cursor mode on
 
 % Reset units on figure and all figure children
@@ -390,7 +416,7 @@ end
 end
 
 % --- Makers --- %
-function [dt] = makeDataCursor(dcm, target, index, properties)
+function [dt] = makeDataCursor(dcm, target, index, cprops)
 % Makes a datatip at the specificed index on the target graphics object.
 
 % Get the cursor position in data units
@@ -419,6 +445,10 @@ set( target.Parent, 'Units', units ); % % reset units
 % never need to increment very many steps, unless the grid is extremely 
 % fine compared to the figure size.
 incrementCursorToIndex(dt.Cursor, index);
+
+for p = 1:2:length(cprops)
+    dt.Cursor.(cprops{p}) = cprops{p+1};
+end
 
 % % Create a copy of the context menu for the datatip:
 % set(dc,'UIContextMenu',dcm.UIContextMenu);
@@ -504,7 +534,7 @@ end
 end
 
 function [ind] = pnt2ind(chart, pnt)
-% Uses X, Y, and ZData in a chart to find the associated index of a given
+% Uses X, Y, and ZData in a chart to find the nearest index of a given
 % point. Will always return the linear index matching the ZData, even if X
 % and Y are vectors.
 
@@ -512,24 +542,20 @@ if any(strcmp(chart.Type, {'contour', 'surface'}))
 % Data is a grid
     % We must search the X and Y data for subscripts because ZData may not 
     % be unique.
-    % Get x index
-    if isvector(chart.XData) % XData is a vector
-        x = find(chart.XData == pnt(1), 1);
-    else % XData is a nd grid
-        x = find(chart.XData(1,:) == pnt(1), 1);
-    end
-    % Get y index
-    if isvector(chart.YData) % YData is a vector
-        y = find(chart.YData == pnt(2), 1);
-    else % XData is a nd grid
-        y = find(chart.YData(:,1) == pnt(2), 1);
+
+    % Convert vector xy into gridded form.
+    if isvector(chart.XData)
+        [xg, yg] = meshgrid(chart.XData, chart.YData);
+    else
+        xg = chart.XData;
+        yg = chart.XData;
     end
 
-    % Convert to linear index
-    ind = sub2ind(size(chart.ZData),y,x);
+    % Retrieve linear index of nearest point
+    ind = dsearchn([xg(:),yg(:)], pnt(1:2));
 else
 % Data is a 1D sequence.
-    ind = find(chart.XData == pnt(1), 1);
+    ind = dsearchn(chart.XData, pnt(1));
 end
 
 end
@@ -615,6 +641,54 @@ pntf = pos(1:2) + pos(3:4).*pntax;
 
 end
 
+function [pnt] = interpPnt(chart, data, xq)
+% Interpolates points in data struct from chart data and given
+% interpolation point.
+
+pnt = zeros(1,length(data));
+is2D = any(strcmp(chart.Type, {'contour', 'surface'}));
+
+% Convert to cell for passing to interpn()
+xq = mat2cell(xq(:), ones(1,length(xq)));
+
+% Get coordinate system data is on
+if is2D && isvector(chart.XData)
+% If coordinate data are vectors and plot is a 2D grid type.
+    x = cell(1,2);
+    [x{1}, x{2}] = meshgrid(chart.XData, chart.YData);
+
+elseif is2D
+% If plot is a 2D grid type
+    x = cell(1,2);
+    x(1) = {chart.XData};
+    x(2) = {chart.YData};
+
+else
+% Plot is 1D
+    x = {chart.XData};
+
+end
+x = cellfun(@(C) C', x, 'UniformOutput', false); % transpose for interpn()
+
+% Interpolate to find elements of pnt from data cell array
+for d = 1:length(data)
+    if d == 1 && is2D && isvector(data{1})
+    % If data contains the vectorized coordinate system as well.
+        [v,~] = meshgrid(data{1}, data{2});
+    elseif d == 2 && is2D && isvector(data{1})
+    % If data contains the vectorized coordinate system as well.
+        [~,v] = meshgrid(data{1}, data{2});
+    else
+    % Otherwise array in data must be correctly formatted.
+        v = data{d};
+    end
+
+    % Interpolate to get entry to pnt from data cell.
+    pnt(d) = interpn(x{:}, v', xq{:});
+end
+
+end
+
 function [] = rmCursors(~, ~, dcm, dcs)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors.
@@ -658,7 +732,8 @@ end
 
 function [] = mvCursors(~,~, dcs, cur)
 % Invokes the datacursor.moveTo function to move an array of cursors to the
-% same index on their sources as the cursor <cur>
+% same index on their sources as the cursor <cur>. Also sets the
+% InterpolationFactor to be the same.
 %
 % Input
 % ~: 
@@ -708,13 +783,20 @@ for dc = dcs(:)'
 
     dc.DataSource.Parent.Units = units;
 
-    % Sometimes data2fig selects the wrong point. This can be due to rounding
-    % in createDatatip, or data2fig not accounting for all
-    % transformations for 3D plots (a surprisingly difficult topic). Too fix 
-    % this we need to correct the point using increment functions. This should 
-    % never need to increment very many steps, unless the grid is extremely 
-    % fine compared to the figure size.
-    incrementCursorToIndex(dc, ind);
+    % If SnapToDataVertex is 'on', Interpolate is 'off'
+    if strcmp(cur.Interpolate, 'off')
+        % Sometimes data2fig selects the wrong point. This can be due to rounding
+        % in createDatatip, or data2fig not accounting for all
+        % transformations for 3D plots (a surprisingly difficult topic). Too fix 
+        % this we need to correct the point using increment functions. This should 
+        % never need to increment very many steps, unless the grid is extremely 
+        % fine compared to the figure size.
+        incrementCursorToIndex(dc, ind);
+
+    % SnapToDataVertex is 'off', Interpolate is 'on'
+    else
+        dc.InterpolationFactor = cur.InterpolationFactor;
+    end
 end
 
 end
@@ -847,14 +929,27 @@ end
 end
 
 % --- Callbacks --- %
-function str = dcmUpdate(dt, eobj, ui)
+function str = dcmUpdate(dt, eobj, ui, opt)
 % Builds string for data cursor display.
 
 % Get index of selected object
 s = [ui.xpl.chart] == eobj.Target;
 
 % Get data point
-pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
+if strcmp(opt.SnapToDataVertex, 'on')
+% Get point from index
+    pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
+else
+% If we aren't snapping to data vertex we want to find the interpolated
+% points from the user data. We get x and y from the chart because the
+% user may not include it in the data cell.
+    if any(strcmp(eobj.Target.Type, {'contour', 'surface'}))
+        xq = dt.Cursor.Position(1:2);
+    else
+        xq = dt.Cursor.Position(1);
+    end
+    pnt = interpPnt(eobj.Target, ui.xpl(s).data(:,2), xq);
+end
 
 % Make string of data to display
 str = cell(1,length(ui.xpl(s).data));
@@ -870,6 +965,75 @@ catch % <= 20XXx
         str{d} = [ui.xpl(s).data{d,1} ' ' num2str(pnt(d),4)];
     end
 end
+
+end
+
+function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
+% Callback function for the user push buttons. Takes the currently
+% selected point information and the user supplied function with arguments.
+% After checking that points have been properly selected will launch the 
+% user function with the first four arguments as matlab defined <src>, 
+% <event>, and exploreResults defined <ui> and <slct>.
+
+% --- Define the external information structures --- %
+% These are designed to make it easier to access selected point and all 
+% associated data.
+
+% Contains information associated with selected points data.
+slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
+
+cinfo = ui.dcm.getCursorInfo;
+for p = 1:length(cinfo)
+    % Index of chart in list of explorable charts
+    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
+
+    % Get target .(chart)
+    slct(p).chart = cinfo(p).Target;
+    slct(p).chartnum = chartnum;
+
+    % Find .(index) from cursor info (.DataIndex) if available. Else find 
+    % it from cursor info .(Position).
+    if isfield(cinfo, 'DataIndex')
+        slct(p).index = cinfo(p).DataIndex;
+    else
+        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
+    end
+
+    % Get .(point)
+    if strcmp(opt.SnapToDataVertex, 'on')
+    % Get point from index
+        slct(p).point = ind2pnt(slct(p).chart, ui.xpl(chartnum).data(:,2), slct(p).index);
+    else
+    % If we aren't snapping to data vertex we want to find the interpolated
+    % points from the user data. We get x and y from the chart because the
+    % user may not include it in the data cell.
+        if any(strcmp(slct(p).chart.Type, {'contour', 'surface'}))
+            xq = cinfo(p).Position(1:2);
+        else
+            xq = cinfo(p).Position(1);
+        end
+        slct(p).point = interpPnt(slct(p).chart, ui.xpl(chartnum).data(:,2), xq);
+    end
+
+end
+
+% Get linked datatip information .(links)
+if opt.SelectionLinkCharts
+    % For each set of linked tips, get their indices in the slct struct
+    for lnk = lnkdt
+        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
+
+        % For each ind, assign the others as links in each slct.links
+        nn = 1:length(ind);
+        for n = nn
+            slct(ind(n)).links = ind(n~=nn);
+        end
+    end
+end
+
+% --- Call user function --- %
+% Call the user's function and pass arguments through
+fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
@@ -938,7 +1102,8 @@ if opt.SelectionLinkCharts && isAdded
         cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
         % Are there no tips on cht or are the tips at different indices?
         if all(~n) || all(cindices ~= index)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, []);
+            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, ...
+                {'InterpolationFactor', curcur.InterpolationFactor});
         end
 
         if any(selview ~= makview)
@@ -975,64 +1140,8 @@ elseif opt.SelectionLinkCharts
 end
 
 % Remove extra datatips
-if false
     % NOT YET REQUIRED
-end
 
-end
-
-function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
-% Callback function for the user push buttons. Takes the currently
-% selected point information and the user supplied function with arguments.
-% After checking that points have been properly selected will launch the 
-% user function with the first four arguments as matlab defined <src>, 
-% <event>, and exploreResults defined <ui> and <slct>.
-
-% --- Define the external information structures --- %
-% These are designed to make it easier to access selected point and all 
-% associated data.
-
-% Contains information associated with selected points data.
-slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
-
-cinfo = ui.dcm.getCursorInfo;
-for p = 1:length(cinfo)
-    % Index of chart in list of explorable charts
-    chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
-
-    % Get target .(chart)
-    slct(p).chart = cinfo(p).Target;
-    slct(p).chartnum = chartnum;
-
-    % DataIndex .(index) from cursor info if available. Else find it from 
-    % cursor info .(Position).
-    if isfield(cinfo, 'DataIndex')
-        slct(p).index = cinfo(p).DataIndex;
-    else
-        slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
-    end
-
-    % Get .(point) manually
-    slct(p).point = ind2pnt(cinfo(p).Target, ui.xpl(chartnum).data(:,2), slct(p).index);
-end
-
-% Get linked datatip information .(links)
-if opt.SelectionLinkCharts
-    % For each set of linked tips, get their indices in the slct struct
-    for lnk = lnkdt
-        ind = find([slct.index] == lnk{1}(1).Cursor.DataIndex);
-
-        % For each ind, assign the others as links in each slct.links
-        nn = 1:length(ind);
-        for n = nn
-            slct(ind(n)).links = ind(n~=nn);
-        end
-    end
-end
-
-% --- Call user function --- %
-% Call the user's function and pass arguments through
-fcn{1}( src, event, ui, slct, fcn{2:end} );
 
 end
 
