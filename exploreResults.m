@@ -275,7 +275,7 @@ fcn = {@mvLinkedTipsKeyPress, dcmode.KeyPressFcn, ui.dcm, {}};
 dcmode.KeyPressFcn = fcn;
 
 % --- Assign UpdateFcn to data cursor mode object --- %
-ui.dcm.UpdateFcn = {@dcmUpdate, ui};
+ui.dcm.UpdateFcn = {@dcmUpdate, ui, opt};
 
 %% --- Finalize Figure Properties --- %%
 ui.dcm.SnapToDataVertex = in.Results.SnapToDataVertex;
@@ -637,6 +637,54 @@ pntf = pos(1:2) + pos(3:4).*pntax;
 
 end
 
+function [pnt] = interpPnt(chart, data, xq)
+% Interpolates points in data struct from chart data and given
+% interpolation point.
+
+pnt = zeros(1,length(data));
+is2D = any(strcmp(chart.Type, {'contour', 'surface'}));
+
+% Convert to cell for passing to interpn()
+xq = mat2cell(xq(:), ones(1,length(xq)));
+
+% Get coordinate system data is on
+if is2D && isvector(chart.XData)
+% If coordinate data are vectors and plot is a 2D grid type.
+    x = cell(1,2);
+    [x{1}, x{2}] = meshgrid(chart.XData, chart.YData);
+
+elseif is2D
+% If plot is a 2D grid type
+    x = cell(1,2);
+    x(1) = {chart.XData};
+    x(2) = {chart.YData};
+
+else
+% Plot is 1D
+    x = {chart.XData};
+
+end
+x = cellfun(@(C) C', x, 'UniformOutput', false); % transpose for interpn()
+
+% Interpolate to find elements of pnt from data cell array
+for d = 1:length(data)
+    if d == 1 && is2D && isvector(data{1})
+    % If data contains the vectorized coordinate system as well.
+        [v,~] = meshgrid(data{1}, data{2});
+    elseif d == 2 && is2D && isvector(data{1})
+    % If data contains the vectorized coordinate system as well.
+        [~,v] = meshgrid(data{1}, data{2});
+    else
+    % Otherwise array in data must be correctly formatted.
+        v = data{d};
+    end
+
+    % Interpolate to get entry to pnt from data cell.
+    pnt(d) = interpn(x{:}, v', xq{:});
+end
+
+end
+
 function [] = rmCursors(~, ~, dcm, dcs)
 % Invokes the datacursormanager.removeCursor function to remove an array of
 % cursors.
@@ -877,14 +925,27 @@ end
 end
 
 % --- Callbacks --- %
-function str = dcmUpdate(dt, eobj, ui)
+function str = dcmUpdate(dt, eobj, ui, opt)
 % Builds string for data cursor display.
 
 % Get index of selected object
 s = [ui.xpl.chart] == eobj.Target;
 
 % Get data point
-pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
+if strcmp(opt.SnapToDataVertex, 'on')
+% Get point from index
+    pnt = ind2pnt(eobj.Target, ui.xpl(s).data(:,2), dt.Cursor.DataIndex);
+else
+% If we aren't snapping to data vertex we want to find the interpolated
+% points from the user data. We get x and y from the chart because the
+% user may not include it in the data cell.
+    if any(strcmp(eobj.Target.Type, {'contour', 'surface'}))
+        xq = dt.Cursor.Position(1:2);
+    else
+        xq = dt.Cursor.Position(1);
+    end
+    pnt = interpPnt(eobj.Target, ui.xpl(s).data(:,2), xq);
+end
 
 % Make string of data to display
 str = cell(1,length(ui.xpl(s).data));
@@ -1040,16 +1101,30 @@ for p = 1:length(cinfo)
     slct(p).chart = cinfo(p).Target;
     slct(p).chartnum = chartnum;
 
-    % DataIndex .(index) from cursor info if available. Else find it from 
-    % cursor info .(Position).
+    % Find .(index) from cursor info (.DataIndex) if available. Else find 
+    % it from cursor info .(Position).
     if isfield(cinfo, 'DataIndex')
         slct(p).index = cinfo(p).DataIndex;
     else
         slct(p).index = pnt2ind(cinfo(p).Target, cinfo(p).Position);
     end
 
-    % Get .(point) manually
-    slct(p).point = ind2pnt(cinfo(p).Target, ui.xpl(chartnum).data(:,2), slct(p).index);
+    % Get .(point)
+    if strcmp(opt.SnapToDataVertex, 'on')
+    % Get point from index
+        slct(p).point = ind2pnt(slct(p).chart, ui.xpl(chartnum).data(:,2), slct(p).index);
+    else
+    % If we aren't snapping to data vertex we want to find the interpolated
+    % points from the user data. We get x and y from the chart because the
+    % user may not include it in the data cell.
+        if any(strcmp(slct(p).chart.Type, {'contour', 'surface'}))
+            xq = cinfo(p).Position(1:2);
+        else
+            xq = cinfo(p).Position(1);
+        end
+        slct(p).point = interpPnt(slct(p).chart, ui.xpl(chartnum).data(:,2), xq);
+    end
+
 end
 
 % Get linked datatip information .(links)
