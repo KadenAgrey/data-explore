@@ -83,7 +83,12 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   indices selected. Selecting a point on one chart will select the same 
 %   point on all charts. 
 % 
-% TODO: Let user specify which plots to link
+% TODO: Let user specify which charts to link
+% 
+% 
+% SelectionPerChart: inf
+%   Integer greater than 0 that determines the number of selected points
+%   allowed per chart object. Default limit is infinity.
 % 
 % 
 % SelectionProperties:
@@ -133,7 +138,7 @@ in.addOptional('charts', getAllExplorableCharts(fig), chkCharts); % charts to se
 in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkCharts',false); % link selected points accross all selectable objects
-% in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
+in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
 in.addParameter('SelectionProperties', {}); % properties of selection marker
 in.addParameter('SnapToDataVertex', 'on', chkOnOff); % snap datatips to data point
 in.addParameter('DisplayStyle', 'datatip', chkDisplay); % display data in window or text box
@@ -204,8 +209,7 @@ figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window ins
 
 % --- Collection options to pass to callbacks --- %
 % Fields to pass to callbacks as options
-opt_fields = {'SelectionLinkCharts', 'SelectionProperties', 'SnapToDataVertex'};
-% opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SelectionProperties', 'SnapToDataVertex'};
+opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SelectionProperties', 'SnapToDataVertex'};
 
 % Define struct containing options to pass to the callbacks
 opt = struct();
@@ -461,7 +465,9 @@ for p = 1:2:length(cprops)
 end
 
 % Set passed datatip propeties
-set(dt, tprops{:});
+if ~isempty(tprops)
+    set(dt, tprops{:});
+end
 
 end
 
@@ -1066,8 +1072,13 @@ curcur = ui.dcm.CurrentCursor;
 alldt = findall(fig.Children, 'Type', 'hggroup'); % all datatips
 curdt = findobj(alldt,'Cursor',curcur); % current datatip
 
+% Get number of tips on the selected chart
+ntpc = length(findobj(alldt, 'DataSource', event.HitObject));
+
 % Set user defined datatip propeties
-set(curdtclc, opt.SelectionProperties{:});
+if ~isempty(opt.SelectionProperties)
+    set(curdt, opt.SelectionProperties{:});
+end
 
 % Even if the correct key combinations were pressed it may not have 
 % resulted in a new data tip. Determine if a new cursor was added.
@@ -1083,78 +1094,112 @@ if opt.SelectionLinkCharts && isAdded
     % Get index of point
     index = curcur.DataIndex;
 
-    % Make Linked data tips
-    cchts = [alldt.DataSource]; % cursor charts
-    newdt = gobjects(0);
-    for cht = xchts(~s) % loop over "non-hit" explorable charts
+    if ntpc <= opt.SelectionPerChart
+    % Create new tips on all charts
 
-        % Because Matlab places and moves datatips on the point closest to the 
-        % camera we need to make sure that the axes we are placing/moving this
-        % point on have the same view angle.
-        selview = get(xchts(s).Parent, 'View');
-        makview = get(cht.Parent, 'View');
-        if any(selview ~= makview)
-            set(cht.Parent, 'View', selview);
+        % Make Linked data tips
+        cchts = [alldt.DataSource]; % cursor charts
+        newdt = gobjects(0);
+        for cht = xchts(~s) % loop over "non-hit" explorable charts
+
+            % Because Matlab places and moves datatips on the point closest to the 
+            % camera we need to make sure that the axes we are placing/moving this
+            % point on have the same view angle.
+            selview = get(xchts(s).Parent, 'View');
+            makview = get(cht.Parent, 'View');
+            if any(selview ~= makview)
+                set(cht.Parent, 'View', selview);
+            end
+
+            n = cchts == cht; % which datatips in <alldt> are on <cht>
+            cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
+            % Are there no tips on cht or are the tips at different indices?
+            if all(~n) || all(cindices ~= index)
+                newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, ...
+                    {'InterpolationFactor', curcur.InterpolationFactor}, ...
+                    opt.SelectionProperties);
+            end
+
+            if any(selview ~= makview)
+                set(cht.Parent, 'View', makview);
+            end
+
+        end
+        alldt = [alldt; newdt'];
+
+        % Update lnktips
+        lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
+
+        % Add callbacks so that all linked tips are deleted together and moved
+        % together etc.
+        for t = 1:length(lnkdt{end})
+            rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
+            % Add delete functions to linked tips
+            lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, fig, ui.dcm, ui.pbtn, lnkdt{end}(rt)};
         end
 
-        n = cchts == cht; % which datatips in <alldt> are on <cht>
-        cindices = arrayfun(@(A) A.DataIndex, [alldt(n).Cursor]); % cursor indices
-        % Are there no tips on cht or are the tips at different indices?
-        if all(~n) || all(cindices ~= index)
-            newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, ...
-                {'InterpolationFactor', curcur.InterpolationFactor}, ...
-                opt.SelectionProperties);
+        % Reset current cursor
+        ui.dcm.CurrentCursor = curcur;
+
+    else
+    % Delete extra tip and and update linked tips
+
+        % Remove extra tip without deleting all linked tips. We choose to 
+        % replace the first entry into lnkdt.
+        olddt = findobj(lnkdt{1}, 'DataSource', curdt.DataSource);
+        rmCursorsNoLink([], [], ui.dcm, olddt);
+
+        % Update lnkdt. We choose to replace the first entry into lnkdt 
+        % (the oldest tips) and move it to the end.
+        r = lnkdt{1} ~= olddt; % remaining tips
+        lnkdt = [ lnkdt(2:end) {[curdt lnkdt{1}(r)]} ];
+
+        % Update delete functions
+        for t = 1:length(lnkdt{end})
+            rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
+            % Add delete functions to linked tips
+            lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, fig, ui.dcm, ui.pbtn, lnkdt{end}(rt)};
         end
 
-        if any(selview ~= makview)
-            set(cht.Parent, 'View', makview);
-        end
+        % We don't need to move the tips here because this is handled in the
+        % button up function.
 
     end
-    alldt = [alldt; newdt'];
-
-    % Update lnktips
-    lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
-
-    % Add callbacks so that all linked tips are deleted together and moved
-    % together etc.
-    for t = 1:length(lnkdt{end})
-        rt = 1:length(lnkdt{end}) ~= t; % indices of other tips to remove
-        % Add delete functions to linked tips
-        lnkdt{end}(t).DeleteFcn = {@rmLinkedCursors, fig, ui.dcm, ui.pbtn, lnkdt{end}(rt)};
-    end
-
-    % Reset current cursor
-    ui.dcm.CurrentCursor = curcur;
 
     % Update callback args
-    setLinkedTips(fig, ui.pbtn, lnkdt)
+    setLinkedTips(fig, ui.pbtn, lnkdt);
 
 elseif opt.SelectionLinkCharts
     % Ensure datatips move together
-    curdt = findobj(alldt,'Cursor',curcur);
-    mvSrcLinkedTips(lnkdt, curdt, xchts)
+    mvSrcLinkedTips(lnkdt, curdt, xchts);
     % We don't need to move the tips here because this is handled in the
     % button up function. We only ensure data sources are correct.
+
+elseif ntpc > opt.SelectionPerChart
+    % If not linking charts but a tip was added that excedes the limit of
+    % tips per chart object, delete the extra tip.
+    olddt = findobj(alldt, 'DataSource', curdt.DataSource);
+    rmCursors([], [], ui.dcm, olddt(end).Cursor);
+
 end
 
-% Remove extra datatips
-    % NOT YET REQUIRED
-
-
 end
 
-function [] = mvLinkedTipsButtonUp(src, event, fcn, dcm, lnkdt)
+function [] = mvLinkedTipsButtonUp(fig, event, fcn, dcm, lnkdt)
 % If click and drag is used to move a tip, we need to update tip locations 
 % on the button up action.
 
 % Run the original callback
 if isa(fcn,'function_handle')
-   fcn(src, event);
+   fcn(fig, event);
 end
 
-% If selection type is normal continue.
-if ~strcmp(src.SelectionType,'normal')
+% If selection type is normal or extended with alt/shift continue.
+mod = get(fig,'CurrentModifier');
+isNormalType = strcmp(fig.SelectionType, 'normal');  % selection type is 'normal'?
+isAddMod = numel(mod)==1  && strcmp(fig.SelectionType, 'extend') ...
+    && any( strcmp(mod{1}, {'shift','alt'})  ); % selection type is 'extend' with 'shift' or 'alt'?
+if ~( isNormalType || isAddMod )
     return;
 end
 
@@ -1162,7 +1207,7 @@ end
 curdt = findobj([lnkdt{:}],'Cursor',dcm.CurrentCursor);
 
 % Ensure linked tips move with current tip
-mvLinkedTips(lnkdt, curdt)
+mvLinkedTips(lnkdt, curdt);
 
 end
 

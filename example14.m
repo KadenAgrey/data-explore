@@ -29,7 +29,7 @@ pbtn_callback = {'User Function', @ userCallback, phrase};
 markerprops = {'MarkerSize',5, 'MarkerFaceColor','none', 'MarkerEdgeColor','k', 'Marker','o'};
 
 % Finally launch the ui figure
-exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SelectionProperties', markerprops );
+exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SelectionPerChart', 1, 'SelectionProperties', markerprops );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, phrase)

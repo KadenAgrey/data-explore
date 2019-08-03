@@ -50,7 +50,7 @@ cutoff = 1; % just an argument for the example function
 pbtn_callback = {'User Function', @ userCallback, lines(1), [], []};
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines, 'DataFromAxes', true, 'SelectionLinkCharts', true );
+exploreResults( mainfig, pbtn_callback, lines, 'DataFromAxes', true, 'SelectionPerChart', 2 );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, newfig)
