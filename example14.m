@@ -26,9 +26,10 @@ zlabel('z')
 % on this argument for details on the requirements of this function.
 phrase = 'Display Me!'; % just an argument for the example function
 pbtn_callback = {'User Function', @ userCallback, phrase};
+markerprops = {'MarkerSize',5, 'MarkerFaceColor','none', 'MarkerEdgeColor','k', 'Marker','o'};
 
 % Finally launch the ui figure
-exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );
+exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SelectionProperties', markerprops );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, phrase)
