@@ -85,16 +85,24 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % 
 % TODO: Let user specify which plots to link
 % 
+% 
+% SelectionProperties:
+%   Cell array of name/value pairs to determine point properties for
+%   datatips. 
+% 
+% 
 % SnapToDataVertex: 'on'|'off'
 %   Specified whether data cursors snap to nearest data value or appear at
 %   mouse position. From datacursormode(). The data associated with this 
 %   point will still be from the nearest point. 
-%
+% 
+% 
 % DisplayStyle: 'datatip' | 'window'
 %   'datatip' displays cursor information as a text box and marker and 
 %   'window' displays cursor information in a floating window within the 
 %   figure. From datacursormode(). Currently this option is not
 %   supported when SelectionLinkCharts is on.
+% 
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
@@ -126,7 +134,7 @@ in.addParameter('DataFromAxes',true); % display data from axes in boxes
 in.addParameter('DataFromUser',{}); % display boxes will be added with user data
 in.addParameter('SelectionLinkCharts',false); % link selected points accross all selectable objects
 % in.addParameter('SelectionPerChart', inf); % number of data points that can be selected per chart
-% in.addParameter('SelectionProperties', []); % properties of selection marker
+in.addParameter('SelectionProperties', {}); % properties of selection marker
 in.addParameter('SnapToDataVertex', 'on', chkOnOff); % snap datatips to data point
 in.addParameter('DisplayStyle', 'datatip', chkDisplay); % display data in window or text box
 
@@ -134,10 +142,8 @@ in.parse(fig, pbtnfcn, varargin{:})
 
 % Check that SelectionLinkCharts is not on when SnapToDataVertex is 'on' or
 % DisplayStyle is 'window'.
-if in.Results.SelectionLinkCharts && ...
-    ( strcmp(in.Results.SnapToDataVertex, 'on') || strcmp(in.Results.DisplayStyle, 'window') )
-    error(['SelectionLinkCharts can''t be activated if ' ...
-        'SnapToDataVertex is on or DisplayStyle is window.'])
+if in.Results.SelectionLinkCharts && strcmp(in.Results.DisplayStyle, 'window')
+    error('SelectionLinkCharts can''t be activated if DisplayStyle is ''window''.')
 end
 
 % Pull fig out of the object for easier access
@@ -198,8 +204,8 @@ figmargins = [0 10 0 10]; % [pixels] | [left bottom right top] Figure window ins
 
 % --- Collection options to pass to callbacks --- %
 % Fields to pass to callbacks as options
-opt_fields = {'SelectionLinkCharts', 'SnapToDataVertex'};
-% opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SnapToDataVertex'};
+opt_fields = {'SelectionLinkCharts', 'SelectionProperties', 'SnapToDataVertex'};
+% opt_fields = {'SelectionLinkCharts','SelectionPerChart', 'SelectionProperties', 'SnapToDataVertex'};
 
 % Define struct containing options to pass to the callbacks
 opt = struct();
@@ -416,7 +422,7 @@ end
 end
 
 % --- Makers --- %
-function [dt] = makeDataCursor(dcm, target, index, cprops)
+function [dt] = makeDataCursor(dcm, target, index, cprops, tprops)
 % Makes a datatip at the specificed index on the target graphics object.
 
 % Get the cursor position in data units
@@ -438,6 +444,9 @@ dt = dcm.createDatatip(target, figpnt);
 
 set( target.Parent, 'Units', units ); % % reset units
 
+% Set default properties
+set(dt,'UIContextMenu', dcm.UIContextMenu);
+
 % Sometimes data2fig selects the wrong point. This can be due to rounding
 % in createDatatip, or data2fig not accounting for all
 % transformations for 3D plots (a surprisingly difficult topic). Too fix 
@@ -446,27 +455,13 @@ set( target.Parent, 'Units', units ); % % reset units
 % fine compared to the figure size.
 incrementCursorToIndex(dt.Cursor, index);
 
+% Set passed cursor properties
 for p = 1:2:length(cprops)
     dt.Cursor.(cprops{p}) = cprops{p+1};
 end
 
-% % Create a copy of the context menu for the datatip:
-% set(dc,'UIContextMenu',dcm.UIContextMenu);
-% set(dc,'HandleVisibility','off');
-% set(dc,'Host',target);
-% set(dc,'ViewStyle','datatip');
-% 
-% % Set the data-tip orientation to top-right rather than auto
-% set(dc,'OrientationMode','manual');
-% set(dc,'Orientation','top-right');
-% 
-% % Update the datatip marker appearance
-% set(dc, 'MarkerSize',5, 'MarkerFaceColor','none', ...
-%     'MarkerEdgeColor','k', 'Marker','o', 'HitTest','off');
-% 
-% dc.update([x,y,1; x,y,-1]);
-% dcm.updateDataCursors
-% dcm.editUpdateFcn
+% Set passed datatip propeties
+set(dt, tprops{:});
 
 end
 
@@ -1069,6 +1064,10 @@ end
 % Store the current cursor to reset after
 curcur = ui.dcm.CurrentCursor;
 alldt = findall(fig.Children, 'Type', 'hggroup'); % all datatips
+curdt = findobj(alldt,'Cursor',curcur); % current datatip
+
+% Set user defined datatip propeties
+set(curdtclc, opt.SelectionProperties{:});
 
 % Even if the correct key combinations were pressed it may not have 
 % resulted in a new data tip. Determine if a new cursor was added.
@@ -1103,7 +1102,8 @@ if opt.SelectionLinkCharts && isAdded
         % Are there no tips on cht or are the tips at different indices?
         if all(~n) || all(cindices ~= index)
             newdt(length(newdt)+1) = makeDataCursor(ui.dcm, cht, index, ...
-                {'InterpolationFactor', curcur.InterpolationFactor});
+                {'InterpolationFactor', curcur.InterpolationFactor}, ...
+                opt.SelectionProperties);
         end
 
         if any(selview ~= makview)
@@ -1114,7 +1114,6 @@ if opt.SelectionLinkCharts && isAdded
     alldt = [alldt; newdt'];
 
     % Update lnktips
-    curdt = findobj(alldt,'Cursor',curcur);
     lnkdt(length(lnkdt) + 1) = {[curdt newdt]};
 
     % Add callbacks so that all linked tips are deleted together and moved
