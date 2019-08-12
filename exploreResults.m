@@ -12,10 +12,9 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % 
 % pbtnfcn: 
 %   This argument is used to initialize the push buttons. It should be a 
-%   cell array with the button name as the first column, a function handle 
-%   as the second column and arguments to the function as later columns. 
-%   Each row corresponds to a different pushbutton, which will be added to 
-%   the figure as needed.
+%   cell array with each element corresponding to one pushbutton and 
+%   defining the button name, callback function handle, and user defined 
+%   input arguments to the function as a nested cell array.
 % 
 %   The first 4 arguments to the function MUST be reserved for
 %   exploreResults. The latter arguments should correspond to those in the
@@ -254,18 +253,18 @@ end
 %% --- Setup UI --- %%
 % --- Make pushbuttons specified by user input --- %
 horz = getLeftChild(fig, 'pixels', 'Position'); % place in line with farthest left plot
-ui.pbtn = gobjects(1, size(in.Results.pbtnfcn,1));
-for pb = 1:size(in.Results.pbtnfcn,1)
+ui.pbtn = gobjects(1, length(in.Results.pbtnfcn));
+for pb = 1:length(in.Results.pbtnfcn)
     % Pushbutton position is in line with leftmost figure or next to the 
     % last pushbutton with a size defined in pbsize.
     pbpos = [horz + (pbsize(1) + pbmargins(1))*(pb-1), ...
              pbmargins(2) + figmargins(2), pbsize]; % [x y w h];
     % Make the button
     ui.pbtn(pb) = uicontrol(fig, 'Style', 'pushbutton',...
-                                 'String', in.Results.pbtnfcn{pb,1},...
+                                 'String', in.Results.pbtnfcn{pb}{1},...
                                  'Units', 'pixels',...
                                  'Position', pbpos, ...
-                                 'Callback', {@pbtnCallback, in.Results.pbtnfcn(pb,2:end), ui, {}, opt});
+                                 'Callback', {@pbtnCallback, in.Results.pbtnfcn{pb}(2:end), ui, {}, opt});
 
     ui.pbtn(pb).Units = 'normalized'; % set units
 end
