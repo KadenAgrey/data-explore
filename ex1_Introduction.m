@@ -1,12 +1,15 @@
 %% ex1_Introduction
 % ----------------------------------------------------------------------- %
+% exploreResults is a helpful function designed to allow the user to select
+% data points from a plot (or multiple plots) and run further analysis or
+% visualization on them. 
 % This example demonstrates two things required to run the function. 
 %   1. the format to define pushbuttons and their callback functions 
 %      (functions executed when they are pressed). 
 %      See section: Setup exploreResults.
 %   2. the order and structure of arguments that exploreResults passes to 
 %      those functions and how to pass your own arguments.
-%      See section: Callback Function
+%      See section: Callback Functions
 % ----------------------------------------------------------------------- %
 
 %% Build a figure
@@ -49,26 +52,20 @@ function myFunc1(src, event, ui, slct)
 % will correspond to the user function,
 %   function myFunc(src, event, ui, slct, arg1, arg2 )
 % 
-% The reserved arguments are:
-%   src: matlab variable pointing to the src of the callback, which is
-%   the pushbutton object.
-%   event: matlab variable giving event information.
-%   ui: exploreResults variable with handles for all ui elements and
-%   explorable chart objects.
-%       ui.dcm: data cursor manager object
-%       ui.pbtn: push button object
-%       ui.xpl(i).chart: explorable chart object (a line or contour etc.)
-%       ui.xpl(i).data: cell array containing axes and/or user data
-%       associated with the chart object.
-%   slct: exploreResults variable with information on the selected
-%   points. 
-%       slct(j).chart: chart object point is on
-%       slct(j).chartnum: index of chart object in ui.xpl(i).chart
-%       slct(j).links: if SelectionLinkCharts is true, index of other 
-%       selected points, slct(j), linked to this one.
-%       slct(j).index: linear index of selected point in associated 
-%       chart data, ui.xpl(chartnum).data.
-%       slct(j).point: value of associated data at index.
+% More about the reserved arguments can be found in the initial 
+% documentation for exploreResults under the description of the input
+% argument "pbtnfcn".
+% 
+% This function can be defined to do anything you'd like; compute results
+% based on the selected points, display figures of data taken from the
+% selected points, launch another instance of explore results, etc. 
+% 
+% This function cannot, unfortunately, return any data back to the 
+% workspace easily. This is not how MATLAB has designed their graphics 
+% objects to work. To return data to the workspace the user has two
+% options. First is to save the data into a matlab file and load it again 
+% later. Second is to place the data in the figures 'UserData' property. 
+%   FIG.UserData = mydata;
 % ----------------------------------------------------------------------- %
 
 % ----------------------------------------------------------------------- %
@@ -82,34 +79,8 @@ end
 
 function myFunc2(src, event, ui, slct, myarg)
 % ----------------------------------------------------------------------- %
-% This is the function that will execute when the pushbutton is pressed. 
-% The first 4 arguments to the function MUST be reserved for 
-% exploreResults. The latter arguments should correspond to those in the 
-% cell array. Eg:
-%   pbtnfcn = {'My Button', @myFunc, arg1, arg2};
-% will correspond to the user function,
-%   function myFunc(src, event, ui, slct, arg1, arg2 )
-% 
-% The reserved arguments are:
-%   src: matlab variable pointing to the src of the callback, which is
-%   the pushbutton object.
-%   event: matlab variable giving event information.
-%   ui: exploreResults variable with handles for all ui elements and
-%   explorable chart objects.
-%       ui.dcm: data cursor manager object
-%       ui.pbtn: push button object
-%       ui.xpl(i).chart: explorable chart object (a line or contour etc.)
-%       ui.xpl(i).data: cell array containing axes and/or user data
-%       associated with the chart object.
-%   slct: exploreResults variable with information on the selected
-%   points. 
-%       slct(j).chart: chart object point is on
-%       slct(j).chartnum: index of chart object in ui.xpl(i).chart
-%       slct(j).links: if SelectionLinkCharts is true, index of other 
-%       selected points, slct(j), linked to this one.
-%       slct(j).index: linear index of selected point in associated 
-%       chart data, ui.xpl(chartnum).data.
-%       slct(j).point: value of associated data at index.
+% This is just a placeholder function used as an example for defining a
+% pushbutton whose function takes user input (myarg).
 % ----------------------------------------------------------------------- %
 
 disp(myarg)
