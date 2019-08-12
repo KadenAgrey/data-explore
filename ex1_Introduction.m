@@ -39,7 +39,7 @@ PUSHBUTTONS = {{'Display', @myFunc1}, ...
                {'Another Button', @myFunc2, myarg1}};
 % ----------------------------------------------------------------------- %
 
-exploreResults(FIG, PUSHBUTTONS)
+exploreResults(FIG, PUSHBUTTONS);
 
 %% Callback Functions
 function myFunc1(src, event, ui, slct)
