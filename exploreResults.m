@@ -2,7 +2,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % exploreResults launches an interactive plot from which detailed results 
 % are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v2.1 2019.07.12
+% v2.2 2019.08.03
 % 
 % Input
 % fig: 
@@ -57,16 +57,16 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %       chart.PickableParts = 'visible'
 % 
 % TODO: Find out how to force Matlab to wait for the renderer before
-% executing the mainplot formatting. - drawnow; doesn't seem to work
+% executing the figure formatting. - drawnow; doesn't seem to work
 % 
 % 
 % Name/Value Pairs
-% DataFromAxes:
+% DataFromAxes: true | false
 %   Boolean, true allows the function to automatically get the data from 
 %   axes and chart objects.
 % 
 % 
-% DataFromUser: 
+% DataFromUser: empty cell
 %   A cell array with name/data pairs that will be displayed with the 
 %   datatips. The cell array should be nested so that the first index 
 %   corresponds to the chart list, and the next index to name/data pairs.
@@ -90,12 +90,12 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   allowed per chart object. Default limit is infinity.
 % 
 % 
-% SelectionProperties:
+% SelectionProperties: empty cell
 %   Cell array of name/value pairs to determine point properties for
 %   datatips. 
 % 
 % 
-% SnapToDataVertex: 'on'|'off'
+% SnapToDataVertex: 'on' | 'off'
 %   Specified whether data cursors snap to nearest data value or appear at
 %   mouse position. From datacursormode(). The data associated with this 
 %   point will still be from the nearest point. 
@@ -117,8 +117,9 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   passing a list of objects, this is more Matlab-like
 %   2019.05.05: Added input parsing and param/value arguments
 %   2019.05.10: Added support for multiple user push button functions
-%   2019.07.12: Switched data display to use MATLABs datatips
-%   2019.07.29: dcm properties supported as Name/Value pairs
+%   2019.07.12: v2.0 - Switched data display to use MATLABs datatips
+%   2019.07.29: v2.1 - dcm properties supported as Name/Value pairs
+%   2019.08.03: v2.2 - limit on number of points per chart allowed
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
