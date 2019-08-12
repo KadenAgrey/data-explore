@@ -42,7 +42,7 @@ end
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 cutoff = 1; % just an argument for the example function
-pbtn_callback = {'User Function', @ userCallback, lines2(1), [], cutoff, []};
+pbtn_callback = {{'User Function', @ userCallback, lines2(1), [], cutoff, []}};
 
 % Set two aditional options
 usefigdat = true; % use data from figure for display boxes

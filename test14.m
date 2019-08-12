@@ -25,7 +25,7 @@ zlabel('z')
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 phrase = 'Display Me!'; % just an argument for the example function
-pbtn_callback = {'User Function', @ userCallback, phrase};
+pbtn_callback = {{'User Function', @ userCallback, phrase}};
 markerprops = {'MarkerSize',5, 'MarkerFaceColor','none', 'MarkerEdgeColor','k', 'Marker','o'};
 
 % Finally launch the ui figure

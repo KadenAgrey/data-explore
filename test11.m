@@ -23,9 +23,9 @@ axis equal
 % This must be a cell array where the first entry is an anonymous function
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
-pbtn_callback = {'View x', @ userCallback, 'x';
-                 'View y', @ userCallback, 'y';
-                 'View z', @ userCallback, 'z'};
+pbtn_callback = { {'View x', @ userCallback, 'x'}, ...
+                  {'View y', @ userCallback, 'y'}, ...
+                  {'View z', @ userCallback, 'z'} };
 
 % Finally launch the ui figure
 exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );

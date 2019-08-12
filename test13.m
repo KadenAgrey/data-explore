@@ -38,7 +38,7 @@ end
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 cutoff = 1; % just an argument for the example function
-pbtn_callback = {'User Function', @ userCallback, [], [], cutoff, []};
+pbtn_callback = {{'User Function', @ userCallback, [], [], cutoff, []}};
 
 % Finally launch the ui figure
 exploreResults( mainfig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );
