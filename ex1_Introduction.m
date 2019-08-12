@@ -3,6 +3,12 @@
 % exploreResults is a helpful function designed to allow the user to select
 % data points from a plot (or multiple plots) and run further analysis or
 % visualization on them. 
+% 
+% exploreResults will activate "Data Cursor Mode" on the matlab figure and
+% adjust its functionality to suit our purposes. If you change modes, to
+% zoom in on the plot for instance, you need only to change the mode back
+% to the "Data Cursor Mode" to regain the selection functionality.
+% 
 % This example demonstrates two things required to run the function. 
 %   1. the format to define pushbuttons and their callback functions 
 %      (functions executed when they are pressed). 
