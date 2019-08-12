@@ -169,7 +169,18 @@ for p = 1:length(in.Results.charts)
     ui.xpl(p).chart = in.Results.charts(p); % chart object handle
 
     % Get data from axes
+    yside = ui.xpl(p).chart.Parent.YAxisLocation;
     if in.Results.DataFromAxes
+        % Check for left/right yaxis
+        if length(ui.xpl(p).chart.Parent.YAxis) > 1
+            % Find the correct yaxis for this child
+            sides = {'left', 'right'};
+            s = strcmp(yside,sides);
+            if ~any(ismember( ui.xpl(p).chart.Parent.Children, ui.xpl(p).chart ))
+                yyaxis(sides{~s}); % switch yaxis side
+            end
+        end
+
         % Get labels. If a label is empty use x,y,z as default.
         lab = {'x', 'y', 'z'};
         if ~isempty( ui.xpl(p).chart.Parent.XLabel.String )
@@ -191,6 +202,9 @@ for p = 1:length(in.Results.charts)
                               lab{2}, ui.xpl(p).chart.YData; ...
                               lab{3}, ui.xpl(p).chart.ZData};
         end
+
+        % Politely reset yyaxis
+        yyaxis(yside);
     end
 
     % Combine with user data if provided
