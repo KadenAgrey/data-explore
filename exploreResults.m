@@ -984,6 +984,12 @@ function str = dcmUpdate(dt, eobj, ui, opt)
 % Get index of selected object
 s = [ui.xpl.chart] == eobj.Target;
 
+% Procede if there is data to display
+if isempty(ui.xpl(s).data)
+    str = '';
+    return;
+end
+
 % Get data point
 if strcmp(opt.SnapToDataVertex, 'on')
 % Get point from index
