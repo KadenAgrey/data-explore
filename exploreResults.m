@@ -996,7 +996,7 @@ catch % <= 20XXx
     dt.TextColor = [0.3 0.6 0.3];
     dt.FontWeight = 'bold';
     for d = 1:length(ui.xpl(s).data)
-        str{d} = [ui.xpl(s).data{d,1} ' ' num2str(pnt(d),4)];
+        str{d} = [ui.xpl(s).data{d,1} '   ' num2str(pnt(d),4)];
     end
 end
 
