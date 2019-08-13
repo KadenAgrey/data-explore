@@ -260,6 +260,21 @@ for ax = axs'
             ax.Children(ch).PickableParts = 'none';
         end
     end
+
+    % Ensure double YAxis plots are correctly set too
+    if isprop(ax,'YAxis') && length(ax.YAxis) > 1
+        sides = {'left', 'right'};
+        s = strcmp(ax.YAxisLocation,sides);
+        yyaxis(ax,sides{~s})
+
+        for ch = 1:length(ax.Children)
+            if ~ismember(ax.Children(ch), in.Results.charts)
+                ax.Children(ch).PickableParts = 'none';
+            end
+        end
+
+        yyaxis(ax,sides{s})
+    end
 end
 
 %% --- Setup UI --- %%
