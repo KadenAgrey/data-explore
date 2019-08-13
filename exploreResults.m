@@ -56,9 +56,6 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %       chart.HitTest = 'on'
 %       chart.PickableParts = 'visible'
 % 
-% TODO: Find out how to force Matlab to wait for the renderer before
-% executing the figure formatting. - drawnow; doesn't seem to work
-% 
 % 
 % Name/Value Pairs
 % DataFromAxes: true | false
@@ -120,6 +117,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   2019.07.12: v2.0 - Switched data display to use MATLABs datatips
 %   2019.07.29: v2.1 - dcm properties supported as Name/Value pairs
 %   2019.08.03: v2.2 - limit on number of points per chart allowed
+%   2019.08.13: bug - axes with two y-axes are supported
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
@@ -169,15 +167,14 @@ for p = 1:length(in.Results.charts)
     ui.xpl(p).chart = in.Results.charts(p); % chart object handle
 
     % Get data from axes
-    yside = ui.xpl(p).chart.Parent.YAxisLocation;
     if in.Results.DataFromAxes
         % Check for left/right yaxis
+        sides = {'left', 'right'};
+        s = strcmp(ui.xpl(p).chart.Parent.YAxisLocation, sides);
         if length(ui.xpl(p).chart.Parent.YAxis) > 1
-            % Find the correct yaxis for this child
-            sides = {'left', 'right'};
-            s = strcmp(yside,sides);
+            % Set the correct yaxis for this child
             if ~any(ismember( ui.xpl(p).chart.Parent.Children, ui.xpl(p).chart ))
-                yyaxis(sides{~s}); % switch yaxis side
+                yyaxis(ui.xpl(p).chart.Parent, sides{~s}); % switch yaxis side
             end
         end
 
@@ -204,7 +201,7 @@ for p = 1:length(in.Results.charts)
         end
 
         % Politely reset yyaxis
-        yyaxis(yside);
+        yyaxis(ui.xpl(p).chart.Parent, sides{s});
     end
 
     % Combine with user data if provided
@@ -317,10 +314,32 @@ end
 function [charts] = getAllExplorableCharts(fig)
 % Returns all axes children of explorable types
 
-ch = findobj(fig.Children, 'flat', 'Type', 'axes', '-or', ...
-                                   'Type', 'polaraxes', '-or', ...
-                                   'Type', 'geoaxes');
+ch = findobj(fig.Children, 'flat', 'Type', 'axes');
+
+% Someday I hope to expand this to work for other axes types.
+% ch = findobj(fig.Children, 'flat', 'Type', 'axes', '-or', ...
+%                                    'Type', 'polaraxes', '-or', ...
+%                                    'Type', 'geoaxes');
+
 charts = findobj([ch.Children], 'flat', '-not', {'Type', 'text', '-or', 'Type', 'light'});
+
+% When an axes has a left and right YAxis, the children on the non-active 
+% axis will be hidden from the search.
+axs = findobj(ch, 'flat', 'Type', 'axes'); % only axes can have two YAxis
+has2yax = arrayfun(@(A) length(A.YAxis) > 1, axs);
+hid_charts = gobjects(0); % don't know num charts on each hidden YAxis
+sides = {'left', 'right'};
+for ax = axs(has2yax)'
+    s = strcmp(ax.YAxisLocation,sides); % find the active side of this axis
+    yyaxis(ax, sides{~s}); % set to other side
+
+    hid = findobj(ax.Children, 'flat', '-not', {'Type', 'text', '-or', 'Type', 'light'});
+    hid_charts = [hid_charts; hid]; % append to the hid_charts array
+
+    yyaxis(ax,sides{s}); % reset side
+end
+
+charts = [charts; hid_charts];
 
 end
 
