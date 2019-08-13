@@ -77,8 +77,34 @@ function myFunc1(src, event, ui, slct)
 % ----------------------------------------------------------------------- %
 % Display the data structs passed to the function by exploreResults. These
 % contain information on the ui elements and selected points.
-display(slct)
-display(ui)
+disp('The structure of the arguments holding selected point information')
+disp('slct:')
+disp(slct)
+disp('ui:')
+disp(ui)
+disp('')
+% ----------------------------------------------------------------------- %
+
+% ----------------------------------------------------------------------- %
+% Note that the full data martices associated with each selected point in
+% slct are stored in ui.xplr(slct(p).chartnum).
+disp(['The number of selectable charts is: ' num2str(length(ui.xpl))])
+disp(['The number of selected points is: ' num2str(length(slct))])
+disp(['The first selected point comes from chart ' ...
+      num2str(slct(1).chartnum) ' in ui.xpl with:'])
+disp(['    point = ' num2str(slct(1).point')])
+disp(['    index = ' num2str(slct(1).index)])
+disp('')
+
+disp('The data labels for this point are:')
+str = '    ';
+for d = 1:size(ui.xpl(slct(1).chartnum).data,1)
+    str = [str '  ' ui.xpl(slct(1).chartnum).data{d,1}];
+end
+disp(str)
+disp('')
+
+disp('The full data arrays can be accessed by ''ui.xpl( slct(1).chartnum ).data''')
 % ----------------------------------------------------------------------- %
 
 end
