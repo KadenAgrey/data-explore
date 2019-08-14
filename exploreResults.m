@@ -79,8 +79,6 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   indices selected. Selecting a point on one chart will select the same 
 %   point on all charts. 
 % 
-% TODO: Let user specify which charts to link
-% 
 % 
 % SelectionPerChart: inf
 %   Integer greater than 0 that determines the number of selected points
@@ -89,7 +87,8 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 % 
 % SelectionProperties: empty cell
 %   Cell array of name/value pairs to determine point properties for
-%   datatips. 
+%   datatips. Settings that can be changed are: Marker, MarkerEdgeColor, 
+%   MarkerFaceColor, MarkerSize.
 % 
 % 
 % SnapToDataVertex: 'on' | 'off'
@@ -105,6 +104,9 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   supported when SelectionLinkCharts is on.
 % 
 % 
+% TODO: Let user specify which charts to link
+% TODO: Support polaraxes and geoaxes objects
+% 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
 %   2018.08.15: Added support for plots generated from gridded data (like
@@ -117,7 +119,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   2019.07.12: v2.0 - Switched data display to use MATLABs datatips
 %   2019.07.29: v2.1 - dcm properties supported as Name/Value pairs
 %   2019.08.03: v2.2 - limit on number of points per chart allowed
-%   2019.08.13: bug - axes with two y-axes are supported
+%   2019.08.13: bugs - axes with 2 y-axes + empty data struct in updateFcn
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
