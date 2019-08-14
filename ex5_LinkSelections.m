@@ -1,7 +1,7 @@
 %% ex5_LinkSelections
 % ----------------------------------------------------------------------- %
 % With the 'SelectionLinkCharts' option we can force the same point to be
-% selected on all charts.
+% selected on all charts. 
 % ----------------------------------------------------------------------- %
 
 %% Build a figure

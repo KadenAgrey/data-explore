@@ -82,7 +82,6 @@ disp('slct:')
 disp(slct)
 disp('ui:')
 disp(ui)
-disp('')
 % ----------------------------------------------------------------------- %
 
 % ----------------------------------------------------------------------- %
@@ -94,7 +93,7 @@ disp(['The first selected point comes from chart ' ...
       num2str(slct(1).chartnum) ' in ui.xpl with:'])
 disp(['    point = ' num2str(slct(1).point')])
 disp(['    index = ' num2str(slct(1).index)])
-disp('')
+fprintf('\n')
 
 disp('The data labels for this point are:')
 str = '    ';
@@ -102,7 +101,7 @@ for d = 1:size(ui.xpl(slct(1).chartnum).data,1)
     str = [str '  ' ui.xpl(slct(1).chartnum).data{d,1}];
 end
 disp(str)
-disp('')
+fprintf('\n')
 
 disp('The full data arrays can be accessed by ''ui.xpl( slct(1).chartnum ).data''')
 % ----------------------------------------------------------------------- %
