@@ -54,7 +54,7 @@ PUSHBUTTONS = {{'Display', @myFunc}};
 % Data arrays must have the same number of elements and dimension as the 
 % chart from which it will be selected.
 USERDATA = {{}, ... % chart 1
-            {'y^2', sqrt(x).^2; 'Index', 1:length(x)}}; % chart 2
+            {'y^2', sqrt(x).^2; 'Index', 1:length(x)}}; % chart 3
 % ----------------------------------------------------------------------- %
 
 % ----------------------------------------------------------------------- %
