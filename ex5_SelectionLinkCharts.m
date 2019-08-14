@@ -1,4 +1,4 @@
-%% ex5_LinkSelections
+%% ex5_SelectionLinkCharts
 % ----------------------------------------------------------------------- %
 % With the 'SelectionLinkCharts' option we can force the same point to be
 % selected on all charts. 
