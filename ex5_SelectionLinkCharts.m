@@ -36,7 +36,7 @@ CHARTS(3) = plot(x,y,'-s');
 
 ylabel('x^(1/2)')
 
-%% Setup exploreResults
+%% Setup exploreData
 PUSHBUTTONS = {{'Display', @myFunc}};
 
 USERDATA = {{}, ... % chart 1
@@ -46,13 +46,13 @@ USERDATA = {{}, ... % chart 1
 % Setting 'SelectionLinkCharts' to true will force all charts to have the
 % same index selected. WARNING: this only works when all charts plotted
 % have the same number of points!
-exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, ...
+exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, ...
     'SelectionLinkCharts', true);
 % ----------------------------------------------------------------------- %
 
 %% Callback Functions
 function myFunc(src, event, ui, slct)
-% Display the data structs passed to the function by exploreResults. These
+% Display the data structs passed to the function by exploreData. These
 % contain information on the ui elements and selected points.
 disp('The structure of the arguments holding selected point information')
 disp('slct:')

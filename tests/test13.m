@@ -32,7 +32,7 @@ for plt = 2:4
 
 end
 
-%% Launch exploreResults
+%% Launch exploreData
 % Push button call back
 % This must be a cell array where the first entry is an anonymous function
 % and the following are arguments for that function. See the documentation
@@ -41,7 +41,7 @@ cutoff = 1; % just an argument for the example function
 pbtn_callback = {{'User Function', @ userCallback, [], [], cutoff, []}};
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );
+exploreData( mainfig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, newfig)
@@ -77,8 +77,8 @@ function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, cutoff, n
 % 
 % % We can optionally update the arguments for this callback like so. The 
 % % user data should be organized in a cell array as with the initial call to
-% % exploreResults. The first three arguments to the callback are set by 
-% % exploreResults and normally don't need to be editted here.+
+% % exploreData. The first three arguments to the callback are set by 
+% % exploreData and normally don't need to be editted here.+
 % 
 % user_args = {@ userCallback, ln, extrapnt, cutoff, newfig};
 % src.Callback{end} = user_args;

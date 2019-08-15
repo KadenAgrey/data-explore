@@ -7,7 +7,7 @@
 %% Build a figure
 % ----------------------------------------------------------------------- %
 % Here we are storing the chart objects returned by plot() in an array. By 
-% passing this as the third argument to exploreResults we can select which
+% passing this as the third argument to exploreData we can select which
 % lines we want to be "selectable".
 % ----------------------------------------------------------------------- %
 
@@ -42,21 +42,21 @@ CHARTS(3) = plot(x,y,'-s');
 
 ylabel('x^(1/2)')
 
-%% Setup exploreResults
+%% Setup exploreData
 PUSHBUTTONS = {{'Display', @myFunc}};
 
 % ----------------------------------------------------------------------- %
 % Including this arugment allows us to control which charts we want to be
 % selectable. In this case passing all of CHARTS through is equivalent to
-% the default functionality of exploreResults, which is to allow all lines
+% the default functionality of exploreData, which is to allow all lines
 % to be selected.
-exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]));
-% exploreResults(FIG, PUSHBUTTONS);
+exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]));
+% exploreData(FIG, PUSHBUTTONS);
 % ----------------------------------------------------------------------- %
 
 %% Callback Functions
 function myFunc(src, event, ui, slct)
-% Display the data structs passed to the function by exploreResults. These
+% Display the data structs passed to the function by exploreData. These
 % contain information on the ui elements and selected points.
 disp('The structure of the arguments holding selected point information')
 disp('slct:')

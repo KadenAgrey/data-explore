@@ -1,7 +1,7 @@
 %% ex2_ExternalFcnDef
 % ----------------------------------------------------------------------- %
 % This example simply demonstrates that the callback functions do not need
-% to be defined within the same script that exploreResults is called. They
+% to be defined within the same script that exploreData is called. They
 % can be external as well.
 % ----------------------------------------------------------------------- %
 
@@ -18,12 +18,12 @@ title('Example Plot')
 xlabel('x')
 ylabel('log(x)^2')
 
-%% Setup exploreResults
+%% Setup exploreData
 % ----------------------------------------------------------------------- %
 % Here we are using a callback function defined in an external function
 % file. Going forward we will keep all callback functions defined within
-% the script that launches exploreResults simply for convenience.
+% the script that launches exploreData simply for convenience.
 PUSHBUTTONS = {{'Display', @ex2myFunc}};
 % ----------------------------------------------------------------------- %
 
-exploreResults(FIG, PUSHBUTTONS);
+exploreData(FIG, PUSHBUTTONS);

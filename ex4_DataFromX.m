@@ -41,7 +41,7 @@ CHARTS(3) = plot(x,y,'-s');
 
 ylabel('x^(1/2)')
 
-%% Setup exploreResults
+%% Setup exploreData
 PUSHBUTTONS = {{'Display', @myFunc}};
 
 % ----------------------------------------------------------------------- %
@@ -63,9 +63,9 @@ USERDATA = {{}, ... % chart 1
 % The 'DataFromAxes' argument disables including the plotted data in the
 % display.
 
-exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA);
-% exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromAxes', false);
-% exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, 'DataFromAxes', false);
+exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA);
+% exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromAxes', false);
+% exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, 'DataFromAxes', false);
 % ----------------------------------------------------------------------- %
 
 %% Callback Functions

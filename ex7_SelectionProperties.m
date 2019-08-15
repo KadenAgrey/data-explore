@@ -36,7 +36,7 @@ CHARTS(3) = plot(x,y,'-s');
 
 ylabel('x^(1/2)')
 
-%% Setup exploreResults
+%% Setup exploreData
 PUSHBUTTONS = {{'Display', @myFunc}};
 
 USERDATA = {{}, ... % chart 1
@@ -57,13 +57,13 @@ MARKERPROPS = {'Marker', 'd', ...
 % ----------------------------------------------------------------------- %
 % Set 'SelectionProperties' to the cell array MARKERPROPS to control the
 % visual settings of the marker.
-exploreResults(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, ...
+exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA, ...
     'SelectionLinkCharts', true, 'SelectionPerChart', 2, 'SelectionProperties', MARKERPROPS);
 % ----------------------------------------------------------------------- %
 
 %% Callback Functions
 function myFunc(src, event, ui, slct)
-% Display the data structs passed to the function by exploreResults. These
+% Display the data structs passed to the function by exploreData. These
 % contain information on the ui elements and selected points.
 disp('The structure of the arguments holding selected point information')
 disp('slct:')

@@ -1,10 +1,10 @@
 %% ex1_Introduction
 % ----------------------------------------------------------------------- %
-% exploreResults is a helpful function designed to allow the user to select
+% exploreData is a helpful function designed to allow the user to select
 % data points from a plot (or multiple plots) and run further analysis or
 % visualization on them. 
 % 
-% exploreResults will activate "Data Cursor Mode" on the matlab figure and
+% exploreData will activate "Data Cursor Mode" on the matlab figure and
 % adjust its functionality to suit our purposes. If you change modes, to
 % zoom in on the plot for instance, you need only to change the mode back
 % to the "Data Cursor Mode" to regain the selection functionality.
@@ -12,8 +12,8 @@
 % This example demonstrates two things required to run the function. 
 %   1. the format to define pushbuttons and their callback functions 
 %      (functions executed when they are pressed). 
-%      See section: Setup exploreResults.
-%   2. the order and structure of arguments that exploreResults passes to 
+%      See section: Setup exploreData.
+%   2. the order and structure of arguments that exploreData passes to 
 %      those functions and how to pass your own arguments.
 %      See section: Callback Functions
 % ----------------------------------------------------------------------- %
@@ -31,10 +31,10 @@ title('Example Plot')
 xlabel('x')
 ylabel('log(x)^2')
 
-%% Setup exploreResults
+%% Setup exploreData
 % ----------------------------------------------------------------------- %
 % This argument defines the number, label, and callback functions plus
-% arguments of pushbuttons on the figure window. exploreResults will the 
+% arguments of pushbuttons on the figure window. exploreData will the 
 % pushbuttons automatically. 
 % 
 % Each element of the PUSHBUTTONS cell corresponds to one pushbutton and
@@ -45,21 +45,21 @@ PUSHBUTTONS = {{'Display', @myFunc1}, ...
                {'Another Button', @myFunc2, myarg1}};
 % ----------------------------------------------------------------------- %
 
-exploreResults(FIG, PUSHBUTTONS);
+exploreData(FIG, PUSHBUTTONS);
 
 %% Callback Functions
 function myFunc1(src, event, ui, slct)
 % ----------------------------------------------------------------------- %
 % This is the function that will execute when the pushbutton is pressed. 
 % The first 4 arguments to the function MUST be reserved for 
-% exploreResults. The latter arguments should correspond to those in the 
+% exploreData. The latter arguments should correspond to those in the 
 % cell array. Eg:
 %   pbtnfcn = {'My Button', @myFunc, arg1, arg2};
 % will correspond to the user function,
 %   function myFunc(src, event, ui, slct, arg1, arg2 )
 % 
 % More about the reserved arguments can be found in the initial 
-% documentation for exploreResults under the description of the input
+% documentation for exploreData under the description of the input
 % argument "pbtnfcn".
 % 
 % This function can be defined to do anything you'd like; compute results
@@ -75,7 +75,7 @@ function myFunc1(src, event, ui, slct)
 % ----------------------------------------------------------------------- %
 
 % ----------------------------------------------------------------------- %
-% Display the data structs passed to the function by exploreResults. These
+% Display the data structs passed to the function by exploreData. These
 % contain information on the ui elements and selected points.
 disp('The structure of the arguments holding selected point information')
 disp('slct:')

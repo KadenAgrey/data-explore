@@ -26,7 +26,7 @@ pbtn_callback = { {'View x', @ userCallback, 'x'}, ...
                   {'View z', @ userCallback, 'z'} };
 
 % Finally launch the ui figure
-exploreResults( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SnapToDataVertex', 'off'  );
+exploreData( fig, pbtn_callback, 'DataFromAxes', true, 'SelectionLinkCharts', true, 'SnapToDataVertex', 'off'  );
 
 %% --- Example User Function --- %%
 function userCallback(src, event, ui, slct, dim)

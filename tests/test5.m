@@ -35,7 +35,7 @@ for plt = 1:8
 end
 
 %% Launch exploreData
-% exploreResults has an option for display boxes to show information on the
+% exploreData has an option for display boxes to show information on the
 % selected point. It can get this information from the line selected and/or
 % the user can provide the information in a cell array.
 % uispec = {{ 'Selected Index', 1:length(x), 'y2', y2/max(y2) },...
@@ -50,7 +50,7 @@ cutoff = 1; % just an argument for the example function
 pbtn_callback = {{'User Function', @ userCallback, lines(1), [], []}};
 
 % Finally launch the ui figure
-exploreResults( mainfig, pbtn_callback, lines, 'DataFromAxes', true, 'SelectionPerChart', 2 );
+exploreData( mainfig, pbtn_callback, lines, 'DataFromAxes', true, 'SelectionPerChart', 2 );
 
 %% --- Example User Function --- %%
 function [ newfig ] = userCallback(src, event, ui, slct, ln, extrapnt, newfig)
@@ -82,8 +82,8 @@ axis tight
 
 % We can optionally update the arguments for this callback like so. The 
 % user data should be organized in a cell array as with the initial call to
-% exploreResults. The first three arguments to the callback are set by 
-% exploreResults and normally don't need to be editted here.
+% exploreData. The first three arguments to the callback are set by 
+% exploreData and normally don't need to be editted here.
 
 user_args = {@ userCallback, ln, extrapnt, newfig};
 src.Callback{end} = user_args;

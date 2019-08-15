@@ -1,5 +1,5 @@
-function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
-% exploreResults launches an interactive plot from which detailed results 
+function [ fig ] = exploreData( fig, pbtnfcn, varargin )
+% exploreData launches an interactive plot from which detailed results 
 % are passed to user defined functions from selected data points.
 % By: Kaden Agrey
 % v2.2 2019.08.03
@@ -17,7 +17,7 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %   input arguments to the function as a nested cell array.
 % 
 %   The first 4 arguments to the function MUST be reserved for
-%   exploreResults. The latter arguments should correspond to those in the
+%   exploreData. The latter arguments should correspond to those in the
 %   cell array. Eg:
 %       pbtnfcn = {'My Button', fcn, arg1, arg2};
 %   will correspond to the user function,
@@ -27,14 +27,14 @@ function [ fig ] = exploreResults( fig, pbtnfcn, varargin )
 %       src: matlab variable pointing to the src of the callback, which is
 %       the pushbutton object.
 %       event: matlab variable giving event information.
-%       ui: exploreResults variable with handles for all ui elements and
+%       ui: exploreData variable with handles for all ui elements and
 %       explorable chart objects.
 %           ui.dcm: data cursor manager object
 %           ui.pbtn: push button object
 %           ui.xpl(i).chart: explorable chart object (a line or contour)
 %           ui.xpl(i).data: cell array containing axes and/or user data
 %           associated with the chart object.
-%       slct: exploreResults variable with information on the selected
+%       slct: exploreData variable with information on the selected
 %       points. 
 %           slct(j).chart: chart object point is on
 %           slct(j).chartnum: index of chart object in ui.xpl(i).chart
@@ -1030,7 +1030,7 @@ function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
 % selected point information and the user supplied function with arguments.
 % After checking that points have been properly selected will launch the 
 % user function with the first four arguments as matlab defined <src>, 
-% <event>, and exploreResults defined <ui> and <slct>.
+% <event>, and exploreData defined <ui> and <slct>.
 
 % --- Define the external information structures --- %
 % These are designed to make it easier to access selected point and all 
