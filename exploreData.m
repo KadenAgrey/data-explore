@@ -202,8 +202,10 @@ for p = 1:length(in.Results.charts)
                               lab{3}, ui.xpl(p).chart.ZData};
         end
 
-        % Politely reset yyaxis
-        yyaxis(ui.xpl(p).chart.Parent, sides{s});
+        if length(ui.xpl(p).chart.Parent.YAxis) > 1
+            % Politely reset yyaxis
+            yyaxis(ui.xpl(p).chart.Parent, sides{s});
+        end
     end
 
     % Combine with user data if provided
