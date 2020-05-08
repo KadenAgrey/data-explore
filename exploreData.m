@@ -106,6 +106,7 @@ function [ fig ] = exploreData( fig, pbtnfcn, varargin )
 % 
 % TODO: Let user specify which charts to link
 % TODO: Support polaraxes and geoaxes objects
+% TODO: Setting pickable parts on streamlines takes a long time
 % 
 % Change Log
 %   2018.07.31: Added support for multiple rows of subplots
