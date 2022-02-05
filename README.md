@@ -1,5 +1,5 @@
 # data-explore [![View data-explore on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/106270-data-explore)
-A tool that allows data selection from Matlab plots to quickly view details of results. 
+A tool to connect data selected from Matlab plots to push buttons for quickly exploring result details.
 This tool creates a series of push buttons on a figure and attaches user specified functions to each.
 The tool then tracks user selected datapoints and passes these along when the push button is pressed.
 The tool supports multi-point selection, but not region selection, in two and three dimensional charts.
