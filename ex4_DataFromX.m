@@ -70,6 +70,11 @@ exploreData(FIG, PUSHBUTTONS, CHARTS([1 3]), 'DataFromUser', USERDATA);
 
 %% Callback Functions
 function myFunc(src, event, ui, slct)
+if isempty(slct)
+    disp('Please select a point!')
+    return
+end
+
 % Display information on the first selected point.
 disp(['The first selected point comes from chart ' ...
       num2str(slct(1).chartnum) ' in ui.xpl with:'])

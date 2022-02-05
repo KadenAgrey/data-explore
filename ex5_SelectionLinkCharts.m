@@ -67,10 +67,12 @@ fprintf('\n')
 % ----------------------------------------------------------------------- %
 % Display information on slct.links. This indicates which selected points
 % are linked together via indicies.
-disp('''slct.links'' is now filled out for each selected point.')
-disp('The first point is linked to the point(s) slct(1).links')
-disp(['    Point 1 is linked to point(s): ' num2str(slct(1).links)])
-disp(['    Point 2 is linked to point(s): ' num2str(slct(2).links)])
+if ~isempty(slct)
+    disp('''slct.links'' is now filled out for each selected point.')
+    disp('The first point is linked to the point(s) slct(1).links')
+    disp(['    Point 1 is linked to point(s): ' num2str(slct(1).links)])
+    disp(['    Point 2 is linked to point(s): ' num2str(slct(2).links)])
+end
 % ----------------------------------------------------------------------- %
 
 end

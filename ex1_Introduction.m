@@ -19,7 +19,7 @@
 % ----------------------------------------------------------------------- %
 
 %% Build a figure
-% Just an example plot demonstrate some functionality
+% Just an example plot to demonstrate some functionality
 FIG = figure;
 
 x = 0.05:0.05:2;
@@ -34,7 +34,7 @@ ylabel('log(x)^2')
 %% Setup exploreData
 % ----------------------------------------------------------------------- %
 % This argument defines the number, label, and callback functions plus
-% arguments of pushbuttons on the figure window. exploreData will the 
+% arguments of pushbuttons on the figure window. exploreData will place the 
 % pushbuttons automatically. 
 % 
 % Each element of the PUSHBUTTONS cell corresponds to one pushbutton and
@@ -85,22 +85,24 @@ disp(ui)
 % ----------------------------------------------------------------------- %
 
 % ----------------------------------------------------------------------- %
-% Note that the full data martices associated with each selected point in
+% Note that the full data matrices associated with each selected point in
 % slct are stored in ui.xplr(slct(p).chartnum).
 disp(['The number of selectable charts is: ' num2str(length(ui.xpl))])
 disp(['The number of selected points is: ' num2str(length(slct))])
-disp(['The first selected point comes from chart ' ...
-      num2str(slct(1).chartnum) ' in ui.xpl with:'])
-disp(['    point = ' num2str(slct(1).point')])
-disp(['    index = ' num2str(slct(1).index)])
-fprintf('\n')
+if ~isempty(slct)
+    disp(['The first selected point comes from chart ' ...
+          num2str(slct(1).chartnum) ' in ui.xpl with:'])
+    disp(['    point = ' num2str(slct(1).point')])
+    disp(['    index = ' num2str(slct(1).index)])
+    fprintf('\n')
 
-disp('The data labels for this point are:')
-str = '    ';
-for d = 1:size(ui.xpl(slct(1).chartnum).data,1)
-    str = [str '  ' ui.xpl(slct(1).chartnum).data{d,1}];
+    disp('The data labels for this point are:')
+    str = '    ';
+    for d = 1:size(ui.xpl(slct(1).chartnum).data,1)
+        str = [str '  ' ui.xpl(slct(1).chartnum).data{d,1}];
+    end
+    disp(str)
 end
-disp(str)
 fprintf('\n')
 
 disp('The full data arrays can be accessed by ''ui.xpl( slct(1).chartnum ).data''')
