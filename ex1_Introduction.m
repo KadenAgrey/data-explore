@@ -102,6 +102,8 @@ if ~isempty(slct)
         str = [str '  ' ui.xpl(slct(1).chartnum).data{d,1}];
     end
     disp(str)
+else
+    disp('Please select a data point!')
 end
 fprintf('\n')
 

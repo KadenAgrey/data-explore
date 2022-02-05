@@ -72,6 +72,8 @@ if ~isempty(slct)
     disp('The first point is linked to the point(s) slct(1).links')
     disp(['    Point 1 is linked to point(s): ' num2str(slct(1).links)])
     disp(['    Point 2 is linked to point(s): ' num2str(slct(2).links)])
+else
+    disp('Please select a data point!')
 end
 % ----------------------------------------------------------------------- %
 
