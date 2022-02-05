@@ -1,4 +1,4 @@
-# data-explore
+# data-explore [![View data-explore on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/106270-data-explore)
 A tool that allows data selection from Matlab plots to quickly view details of results. 
 This tool creates a series of push buttons on a figure and attaches user specified functions to each.
 The tool then tracks user selected datapoints and passes these along when the push button is pressed.
