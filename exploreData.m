@@ -249,11 +249,6 @@ end
 y = getTopChild(fig, 'pixels', 'OuterPosition');
 y = max([y, getTopChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is higher
 fig.Position(4) = y + figmargins(4);
-% This may make the window larger, move it down if it's now off screen
-fig.Units = 'normalized';
-if sum(fig.OuterPosition([2 4])) > 1
-    fig.OuterPosition(2) = fig.OuterPosition(2) - sum(fig.OuterPosition([2 4])) + 1;
-end
 
 % Reset units
 set([fig fig.Children'], {'Units'}, units);
@@ -328,9 +323,14 @@ ui.dcm.SnapToDataVertex = in.Results.SnapToDataVertex;
 ui.dcm.DisplayStyle = in.Results.DisplayStyle;
 ui.dcm.Enable = 'on'; % turn data cursor mode on
 
-% Reset units on figure and all figure children
+% Set units on figure and all figure children to normalized
 fig.Units = 'normalized';
 set(fig.Children, 'Units', 'normalized');
+% The window may be larger than before, move it down if it's now off screen
+drawnow; % Need to check the current figure position
+if sum(fig.OuterPosition([2 4])) > 1
+    fig.OuterPosition(2) = fig.OuterPosition(2) - sum(fig.OuterPosition([2 4])) + 1;
+end
 
 end
 
@@ -1018,7 +1018,7 @@ end
 
 % Make string of data to display
 str = cell(1,length(ui.xpl(s).data));
-try % >= 20XXx
+try % >= 20XXx (matlab version dependent)
     ui.dcm.Interpreter;
     for d = 1:length(ui.xpl(s).data)
         str{d} = [ui.xpl(s).data{d,1} ' {\bf\color{DarkGreen}{' num2str(pnt(d),4) '}}'];
@@ -1043,11 +1043,12 @@ function [] = pbtnCallback(src, event, fcn, ui, lnkdt, opt)
 % --- Define the external information structures --- %
 % These are designed to make it easier to access selected point and all 
 % associated data.
+cinfo = ui.dcm.getCursorInfo;
 
 % Contains information associated with selected points data.
-slct = struct('chart', [], 'chartnum', [], 'links', [], 'index', [], 'point', []);
+c = cell(length(cinfo),1);
+slct = struct('chart', c, 'chartnum', c, 'links', c, 'index', c, 'point', c);
 
-cinfo = ui.dcm.getCursorInfo;
 for p = 1:length(cinfo)
     % Index of chart in list of explorable charts
     chartnum = find( [ui.xpl.chart]==cinfo(p).Target, 1 );
