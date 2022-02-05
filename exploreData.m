@@ -2,7 +2,7 @@ function [ fig ] = exploreData( fig, pbtnfcn, varargin )
 % exploreData launches an interactive plot from which detailed results 
 % are passed to user defined functions from selected data points.
 % By: Kaden Agrey
-% v2.2 2019.08.03
+% v2.2.1 2022.02.05
 % 
 % Input
 % fig: 
@@ -121,7 +121,7 @@ function [ fig ] = exploreData( fig, pbtnfcn, varargin )
 %   2019.07.29: v2.1 - dcm properties supported as Name/Value pairs
 %   2019.08.03: v2.2 - limit on number of points per chart allowed
 %   2019.08.13: bugs - axes with 2 y-axes + empty data struct in updateFcn
-%   2022.02.05: slct struct array has size (0,1) when no points selected
+%   2022.02.05: bugs - empty slct struct array, fig size, no data
 
 %% --- Parse Inputs --- %%
 in = inputParser(); % initialize parser object
