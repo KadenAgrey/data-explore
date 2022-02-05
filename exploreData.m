@@ -249,6 +249,11 @@ end
 y = getTopChild(fig, 'pixels', 'OuterPosition');
 y = max([y, getTopChild(fig, 'pixels', 'Position')]); % Incase an object without the OuterPosition property is higher
 fig.Position(4) = y + figmargins(4);
+% This may make the window larger, move it down if it's now off screen
+fig.Units = 'normalized';
+if sum(fig.OuterPosition([2 4])) > 1
+    fig.OuterPosition(2) = fig.OuterPosition(2) - sum(fig.OuterPosition([2 4])) + 1;
+end
 
 % Reset units
 set([fig fig.Children'], {'Units'}, units);
