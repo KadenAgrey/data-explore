@@ -1067,7 +1067,10 @@ for p = 1:length(cinfo)
     end
 
     % Get .(point)
-    if strcmp(opt.SnapToDataVertex, 'on')
+    if isempty(ui.xpl(chartnum).data)
+    % User specified not to use axes data, nor user data
+        slct(p).point = [];
+    elseif strcmp(opt.SnapToDataVertex, 'on')
     % Get point from index
         slct(p).point = ind2pnt(slct(p).chart, ui.xpl(chartnum).data(:,2), slct(p).index);
     else
