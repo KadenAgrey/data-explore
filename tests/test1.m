@@ -46,7 +46,7 @@ uispec = {{ 'Selected Index', 1:length(x); ...
 % and the following are arguments for that function. See the documentation
 % on this argument for details on the requirements of this function.
 cutoff = 1; % just an argument for the example function
-pbtn_callback = {'User Function', @ userCallback, lines2(1), [], cutoff, []};
+pbtn_callback = {{'User Function', @userCallback, lines2(1), [], cutoff, []}};
 
 % Finally launch the ui figure
 exploreData( mainfig, pbtn_callback, lines1, 'DataFromUser', uispec, 'DataFromAxes', true, 'SelectionLinkCharts', true );
@@ -88,7 +88,7 @@ end
 % exploreData. The first three arguments to the callback are set by 
 % exploreData and normally don't need to be editted here.+
 
-user_args = {@ userCallback, ln, extrapnt, cutoff, newfig};
-src.Callback{end} = user_args;
+user_args = {@userCallback, ln, extrapnt, cutoff, newfig};
+src.Callback{2} = user_args;
 
 end
